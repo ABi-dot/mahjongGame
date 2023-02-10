@@ -83,9 +83,38 @@ class Suit(object):
         res = keys[idx]
         return res
 
+    @classmethod
+    def getNextWind(cls, wind):
+        if not wind:
+            wind = '东'
+        if wind not in cls.Wind:
+            raise ValueError(f"{wind} not in Wind Enum")
+        p = 0
+        for idx, w in enumerate(cls.Wind):
+            if w == wind:
+                p = idx
+                break
+        return cls.getWindByIndex((idx + 1) % 4)
+
+    @classmethod
+    def getBeforeWind(cls, wind):
+        if not wind:
+            wind = '东'
+        if wind not in cls.Wind:
+            raise ValueError(f"{wind} not in Wind Enum")
+        p = 0
+        for idx, w in enumerate(cls.Wind):
+            if w == wind:
+                p = idx
+                break
+        return cls.getWindByIndex((idx - 1 + 4) % 4)
+
+    @classmethod
+    def getOppositionWind(cls, wind:str):
+        return cls.getNextWind(cls.getNextWind(wind))
+
 def main():
-    a = Suit()
-    print(a.getWindByIndex(0))
+    print(Suit.getBeforeWind('东'))
 
 if __name__ == '__main__':
     main()

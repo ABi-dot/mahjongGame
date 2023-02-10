@@ -21,7 +21,7 @@ class Game(object):
     def prepare(self):
         self.players.append(self.player)
         for name in self.opposites:
-            ai = AIPlayer(nick=name, score=self.startScore)
+            ai = AIPlayer(nick=name, score=self.startScore, screen=self.screen, clock=self.clock)
             self.players.append(ai)
 
     def play(self):
@@ -42,3 +42,5 @@ class Game(object):
             hand = HandS(players=self.players, viewer=self.player,
                          number=idx+1, prevailingWind=prevailingWind,
                          screen=self.screen, clock=self.clock)
+            hand.prepare()
+            hand.deal()

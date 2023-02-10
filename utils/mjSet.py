@@ -40,7 +40,9 @@ class MjSet(object):
 
     def __init__(self):
         MjSet.generateDictionary()
+        self._wangPai = []
         self._tiles = []
+        self._leftTiles = 136 - 14
         for key in MjSet.dictionary:
             tile = MjSet.dictionary[key]
             for i in range(4):
@@ -53,6 +55,10 @@ class MjSet(object):
         return text
 
     @property
+    def wangPai(self):
+        return self._wangPai
+
+    @property
     def tiles(self):
         return self._tiles
 
@@ -60,14 +66,34 @@ class MjSet(object):
     def total(self):
         return self._total
 
+    def get_left_tiles_cnt(self):
+        return self._leftTiles
+
     def shuffle(self):
         shuffle(self._tiles)
+        for _ in range(14):
+            t = self.tiles.pop()
+            self._wangPai.append(t)
+
+    def draw(self) -> Tile:
+        if not self._tiles:
+            return None
+        tile = self._tiles.pop()
+        self._leftTiles -= 1
+        return tile
+
+    def draw_from_back(self) -> Tile:
+        if not self._wangPai:
+            return None
+        tile = self._wangPai.pop()
+        self._leftTiles -= 1
+        return tile
 
 def main():
     mj_set = MjSet()
     mj_set.shuffle()
     print(f"{mj_set}")
-    print(len(mj_set.tiles))
+    print(mj_set.draw()._face)
 
 
 if __name__ == '__main__':

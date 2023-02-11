@@ -3,7 +3,7 @@ class Setting(object):
     WinW = 1280
     WinH = 800
     win_w_h_half = (WinW - WinH) // 2 + 50
-    FPS = 10
+    FPS = 5
 
     gameCircles = 2
     gameStartScore = 25000

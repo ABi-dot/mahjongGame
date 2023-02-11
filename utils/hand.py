@@ -17,6 +17,7 @@ class Hand(object):
             raise ValueError("Need players!")
         self._mjSet = MjSet()
         self._players = players
+        self.out_of_tiles = False
         self._positions = dict()
         for idx, player in enumerate(self._players):
             wind = Suit.getWindByIndex(idx)
@@ -27,6 +28,9 @@ class Hand(object):
 
 
         self._winner = None
+        self.firer = None
+        self.robbing_a_kong = False
+        self.mahjong_on_kong = False
 
         self._stateMachine = HandStateMachine()
         self._states = ["begin", "prepared", "playing", "scoring", "end"]

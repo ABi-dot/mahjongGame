@@ -51,6 +51,10 @@ class Player(object):
     def discarding(self):
         return self._discarding
 
+    @discarding.setter
+    def discarding(self, value):
+        self._discarding = value
+
     @property
     def nick(self):
         return self._nick
@@ -146,8 +150,8 @@ class Player(object):
         if not tile:
             raise OutOfTilesError()
         # 杠上开花
-        # if self.try_mahjong():
-        #    raise HaveWinnerError(winner=self)
+        if self.try_mahjong():
+            raise HaveWinnerError(winner=self)
 
     def try_exposed_pong(self, tile: Tile, owner) -> bool:
         cnt = 0
@@ -174,6 +178,31 @@ class Player(object):
             raise ValueError(f"{self.nick} don't have enough {tile}!")
         expose = Expose('exposed pong', inners=inner, outer=tile, outer_owner=owner)
         self._exposed.append(expose)
+
+    def try_exposed_kong_from_exposed_pong(self, mjSet: MjSet) -> bool:
+        tile = self.concealed[-1]
+        if not mjSet.get_left_tiles_cnt():
+            return False
+        if not self.exposed:
+            return False
+        for expose in self.exposed:
+            if expose.expose_type == 'exposed pong' and expose.outer.key == tile.key:
+                # 有杠就杠
+                return self.exposed_kong_from_exposed_pong(tile=tile, expose=expose, mjSet=mjSet)
+        return False
+
+    def exposed_kong_from_exposed_pong(self, tile: Tile, expose: Expose, mjSet: MjSet) -> bool:
+        expose.expose_type = 'exposed kong from exposed pong'
+        expose.inners.append(tile)
+        expose.all.append(tile)
+        self.concealed.pop()
+        tile = self.draw_from_back(mjSet)
+        if not tile:
+            raise OutOfTilesError()
+            # 杠上开花
+        if self.try_mahjong():
+            raise HaveWinnerError(winner=self)
+        return True
 
     def try_exposed_chow(self, tile: Tile, owner) -> bool:
         arr = Rule.convert_tiles_to_arr(self.concealed)
@@ -240,8 +269,16 @@ class Player(object):
         if not tile:
             raise OutOfTilesError()
         # 杠上开花
-        # if self.try_mahjong():
-        #    raise HaveWinnerError(winner=self)
+        if self.try_mahjong():
+           raise HaveWinnerError(winner=self)
+
+    def try_mahjong(self, tile=None) -> bool:
+        test = self.concealed[:]
+        if tile:
+            test.append(tile)
+        if Rule.is_rong(test):
+            return True
+        return False
 
     def decide_discard(self) -> Tile:
         return self.decide_discard_random()
@@ -260,7 +297,7 @@ class Player(object):
 
         self._concealed.remove(tile)
         self._discarded.append(tile)
-        self.discarding = tile
+        self._discarding = tile
         return tile
 
     def draw_info(self):
@@ -272,8 +309,7 @@ class Player(object):
         if self.discarding:
             fileName = Setting.tileImgPath + self.discarding.img
             image = pygame.image.load(fileName)
-            sprite = pygame.sprite.Sprite()
-            sprite.image = image
+            sprite = Sprite(image)
             sprite.rect.centerx = centerx
             sprite.rect.bottom = bottom
             self.info_group.add(sprite)

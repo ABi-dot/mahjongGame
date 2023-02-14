@@ -14,8 +14,8 @@ class Game(object):
         self.circles = Setting.gameCircles
         self.startScore = Setting.gameStartScore
         self.opposites = Setting.gameOpposites[0:3]
-        #self.player = HumanPlayer(Setting.gamePlayer, score=self.startScore, isViewer=True, screen=screen, clock=clock)
-        self.player = AIPlayer(Setting.gamePlayer, score=self.startScore, isViewer=True, screen=screen, clock=clock)
+        self.player = HumanPlayer(Setting.gamePlayer, score=self.startScore, isViewer=True, screen=screen, clock=clock)
+        #self.player = AIPlayer(Setting.gamePlayer, score=self.startScore, isViewer=True, screen=screen, clock=clock)
         self.players = []
 
 

@@ -60,6 +60,10 @@ class Player(object):
         return self._nick
 
     @property
+    def clock(self):
+        return self._clock
+
+    @property
     def concealed(self):
         return self._concealed
 
@@ -330,6 +334,8 @@ class Player(object):
             sprite = Sprite(image)
             sprite.rect.left = left
             sprite.rect.bottom = bottom
+            if self.isViewer and index in self.currentTiles:
+                sprite.rect.bottom += Setting.current_jump
             self.concealed_group.add(sprite)
             left += sprite.rect.width
 

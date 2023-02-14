@@ -3,7 +3,8 @@ class Setting(object):
     WinW = 1280
     WinH = 800
     win_w_h_half = (WinW - WinH) // 2 + 50
-    FPS = 5
+    FPS = 10
+    cmd_FPS = 60
 
     gameCircles = 2
     gameStartScore = 25000
@@ -42,5 +43,17 @@ class Setting(object):
     exposed_bottom = 110
 
     info = 150
+    current_jump = 10
 
+    sprite_base = './resource/sprite/'
+    waiting_img = {
+        'chow': 'chow.png',
+        'pong': 'pong.png',
+        'kong': 'kong.png',
+        'listen': 'listen.png',
+        'cancel': 'cancel.png',
+        'hu': 'hu.png',
+        'ignore': 'ignore.png',
+    }
+    waiting_img_span = 10
 

@@ -48,9 +48,12 @@ class MjSet(object):
             for i in range(4):
                 self._tiles.append(tile)
         self._total = self._tiles[:]
+        self._bonus = [] # 宝牌
+        self._li_bonus = [] # 里宝
+        self._bonus_count = 0
 
     def __str__(self):
-        arr = [f'{x._face}' for x in self._tiles]
+        arr = [f'{x._face}' for x in (self._tiles + self._wangPai)]
         text = ' '.join(arr)
         return text
 
@@ -59,8 +62,28 @@ class MjSet(object):
         return self._wangPai
 
     @property
+    def bonus_count(self):
+        return self._bonus_count
+
+    @bonus_count.setter
+    def bonus_count(self, v):
+        self._bonus_count = v
+
+    @property
+    def bonus(self):
+        return self._bonus
+
+    @property
     def tiles(self):
         return self._tiles
+
+    @property
+    def bonus(self):
+        return self._bonus
+
+    @property
+    def li_bonus(self):
+        return self._li_bonus
 
     @property
     def total(self):
@@ -74,6 +97,11 @@ class MjSet(object):
         for _ in range(14):
             t = self.tiles.pop()
             self._wangPai.append(t)
+        self._bonus_count = 1
+        for i in range(0, 10, 2):
+            self._bonus.append(self._wangPai[i])
+        for i in range(1, 10, 2):
+            self._li_bonus.append((self._wangPai[i]))
 
     def draw(self) -> Tile:
         if not self._tiles:
@@ -93,7 +121,8 @@ def main():
     mj_set = MjSet()
     mj_set.shuffle()
     print(f"{mj_set}")
-    print(mj_set.draw()._face)
+    print([x._face for x in mj_set.bonus])
+    print([x._face for x in mj_set.li_bonus])
 
 
 if __name__ == '__main__':

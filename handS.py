@@ -26,6 +26,7 @@ class HandS(Hand):
         self._font = pygame.font.Font(Setting.font, Setting.normalFontSize)
         self._bgImgGroup = pygame.sprite.Group()
         self._infoGroup = pygame.sprite.Group()
+        self._bonusGroup = pygame.sprite.Group()
         self._handName = pygame.sprite.Group()
 
         handName = prevailingWind + str(number) + '局'
@@ -149,7 +150,7 @@ class HandS(Hand):
         currentDiscard = None
 
         haveWinner = False
-        while not haveWinner and self.mjSet.get_left_tiles_cnt() > 0:
+        while not haveWinner and self.mjSet.get_left_tiles_cnt() >= 0:
             if currentDiscard:
                 wind = current.position
                 player = current
@@ -172,13 +173,14 @@ class HandS(Hand):
             if currentDiscard:
                 player = None
                 # try kong ( must have tiles ):
-                if self.mjSet.get_left_tiles_cnt() > 0:
+                if self.mjSet.get_left_tiles_cnt() > 0 and self.mjSet.bonus_count < 5:
                     wind = current.position
                     player = current
                     for index in range(3):
                         try:
                             if player.try_exposed_kong(tile=currentDiscard, owner=before, mjSet=self._mjSet):
                                 self.refresh_screen('drawing')
+                                self.mjSet.bonus_count += 1
                                 # self._sound_kong.play()
                                 interrupted = True
                                 break
@@ -247,8 +249,8 @@ class HandS(Hand):
 
                 # self kong
                 try:
-                    if current.try_conceal_kong(self.mjSet):
-                        pass
+                    if current.try_conceal_kong(self.mjSet) and self.mjSet.bonus_count < 5:
+                        self.mjSet.bonus_count += 1
                 except OutOfTilesError as e:
                     self.withdraw()
                 except HaveWinnerError as e:
@@ -256,7 +258,7 @@ class HandS(Hand):
                     self.mahjong_on_kong = True
                     self.firer = current
                     self._stateMachine.mahjong()
-                    have_winner = True
+                    haveWinner = True
                     self.refresh_screen(state='mahjong')
                     break
                 if self.winner:
@@ -265,7 +267,10 @@ class HandS(Hand):
                 # test for exposed kong from exposed pong
                 result_of_try = False
                 try:
-                    result_of_try = current.try_exposed_kong_from_exposed_pong(mjSet=self.mjSet)
+                    if self.mjSet.bonus_count < 5:
+                        result_of_try = current.try_exposed_kong_from_exposed_pong(mjSet=self.mjSet)
+                        if result_of_try:
+                            self.mjSet.bonus_count += 1
                 except OutOfTilesError as e:
                     self.withdraw()
                 except HaveWinnerError as e:
@@ -273,7 +278,7 @@ class HandS(Hand):
                     self.mahjong_on_kong = True
                     self.firer = current
                     self._stateMachine.mahjong()
-                    have_winner = True
+                    haveWinner = True
                     self.refresh_screen(state='mahjong')
 
                 if result_of_try:
@@ -326,14 +331,37 @@ class HandS(Hand):
 
     # end def play()
 
+    def drawbonus(self):
+        self._bonusGroup.empty()
+        text = self._font.render('宝牌指示牌', True, Color.YELLOW)
+        sprite = Sprite(text)
+        sprite.rect.left = Setting.bonus_text_left
+        sprite.rect.bottom = Setting.WinH - Setting.bonus_text_bottom
+        self._bonusGroup.add(sprite)
+        left = Setting.bonus_text_left
+        top = Setting.WinH - Setting.bonus_text_bottom + Setting.bonus_text_img_span
+        for i in range(5):
+            if i + 1 <= self.mjSet.bonus_count:
+                tile = self.mjSet.bonus[i]
+                path = Setting.tileImgPath + tile.img
+            else:
+                path = Setting.tileImgPath + Setting.facedownImg
+            image = pygame.image.load(path)
+            sprite = Sprite(image)
+            sprite.rect.left = left
+            sprite.rect.top = top
+            self._bonusGroup.add(sprite)
+            left += sprite.rect.w
+
+        self._bonusGroup.draw(self.screen)
 
     def refresh_screen(self, state: str = ''):
         self.drawbackground()
-
+        self.drawbonus()
         for player in self.players:
             player.draw_screen(state=state)
 
-        text = self._font.render(u'%d' % self.mjSet.get_left_tiles_cnt(), 1, Color.WHITE)
+        text = self._font.render(u'%d' % self.mjSet.get_left_tiles_cnt(), True, Color.WHITE)
         sprite = Sprite(text)
         sprite.rect.centerx = Setting.WinW // 2
         sprite.rect.centery = Setting.WinH // 2

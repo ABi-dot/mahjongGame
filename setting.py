@@ -57,3 +57,6 @@ class Setting(object):
     }
     waiting_img_span = 10
 
+    bonus_text_left = 80
+    bonus_text_bottom = 220
+    bonus_text_img_span = 10

@@ -54,6 +54,7 @@ class Setting(object):
         'cancel': 'cancel.png',
         'hu': 'hu.png',
         'ignore': 'ignore.png',
+        'riichi': 'listen.png'
     }
     waiting_img_span = 10
 

@@ -9,6 +9,9 @@ import random
 from setting import Setting
 from sprite import Sprite
 from utils.suit import Suit
+from mahjong.hand_calculating.hand import HandCalculator
+from mahjong.shanten import Shanten
+from mahjong.tile import TilesConverter
 
 class Player(object):
     def __init__(self, nick="bot", score: int = 25000, isViewer: bool = False, viewerPosition: str = '东',
@@ -30,12 +33,15 @@ class Player(object):
         self._clock = clock
         self.currentTiles = []
         self.currentIdx = -1
+        self._is_closed = True
 
         self.info_group = pygame.sprite.Group()
         self.concealed_group = pygame.sprite.Group()
         self.exposed_group = pygame.sprite.Group()
         self.discarded_group = pygame.sprite.Group()
         self.all_group = pygame.sprite.Group()
+
+        self._is_riichi = False
 
     def reset(self):
         self._concealed = []
@@ -46,10 +52,20 @@ class Player(object):
         self._discarding = None
         self.currentIdx = -1
         self.currentTiles = []
+        self._is_riichi = False
+        self._is_closed = True
 
     @property
     def discarding(self):
         return self._discarding
+
+    @property
+    def is_riichi(self):
+        return self._is_riichi
+
+    @property
+    def is_closed(self):
+        return self._is_closed
 
     @discarding.setter
     def discarding(self, value):
@@ -150,6 +166,7 @@ class Player(object):
             raise ValueError(f"{self.nick} don't have enough {tile}!")
         expose = Expose('exposed kong', inners=inner, outer=tile, outer_owner=owner)
         self._exposed.append(expose)
+        self._is_closed = False
         tile = self.draw_from_back(mjSet)
         if not tile:
             raise OutOfTilesError()
@@ -182,6 +199,7 @@ class Player(object):
             raise ValueError(f"{self.nick} don't have enough {tile}!")
         expose = Expose('exposed pong', inners=inner, outer=tile, outer_owner=owner)
         self._exposed.append(expose)
+        self._is_closed = False
 
     def try_exposed_kong_from_exposed_pong(self, mjSet: MjSet) -> bool:
         tile = self.concealed[-1]
@@ -232,6 +250,7 @@ class Player(object):
 
         expose = Expose('exposed chow', inners=inners, outer=tile, outer_owner=owner)
         self._exposed.append(expose)
+        self._is_closed = False
 
     def draw_from_back(self, mjSet):
         tile = mjSet.draw_from_back()
@@ -256,6 +275,24 @@ class Player(object):
                 self.concealed_kong(tile=x, mjSet=mjSet)
                 return True
         return False
+
+    def try_riichi(self):
+        if not self._is_closed:
+            return False
+        shanten = Shanten()
+        print(Rule.convert_arr_to_mpsh(Rule.convert_tiles_to_arr(self.concealed)))
+        m, p, s, h = Rule.convert_arr_to_mpsh(Rule.convert_tiles_to_arr(self.concealed))
+        for expose in self.exposed:
+            if expose.expose_type != 'concealed kong': return False
+
+        tiles = TilesConverter.string_to_34_array(man=m, sou=s, pin=p, honors=h)
+        result = shanten.calculate_shanten(tiles)
+        if result <= 0:
+            return True
+        return False
+
+    def riichi(self):
+        self._is_riichi = True
 
     def concealed_kong(self, tile, mjSet):
         count = 0

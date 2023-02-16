@@ -3,6 +3,27 @@ from utils.mjMath import MjMath
 from utils.tile import Tile
 class Rule(object):
     @staticmethod
+    def convert_arr_to_mpsh(arr):
+        m, p, s, h = list(), list(), list(), list()
+        for num in arr:
+            if num < 200:
+                m.append(str(num - 100))
+            elif num < 300:
+                p.append(str(num - 200))
+            elif num < 400:
+                s.append(str(num - 300))
+            elif num < 500:
+                h.append(str((num // 10) % 10 + 4))
+            else:
+                h.append(str((num // 10) % 10))
+        res = []
+        res.append(''.join(m))
+        res.append(''.join(p))
+        res.append(''.join(s))
+        res.append(''.join(h))
+        return res
+
+    @staticmethod
     def convert_tiles_to_arr(tiles: list):
         if not tiles:
             return []
@@ -43,12 +64,7 @@ class Rule(object):
         return result
 
 def main():
-    mj_set = MjSet()
-    concealed = []
-    mj_set.shuffle()
-    for _ in range(13):
-        concealed.append(mj_set.draw())
-    print(Rule.convert_tiles_to_arr(concealed))
+    print(Rule.convert_arr_to_mpsh([101,102,103,201,203,205,303,420,430,530]))
 
 
 if __name__ == '__main__':

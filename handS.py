@@ -28,6 +28,7 @@ class HandS(Hand):
         self._infoGroup = pygame.sprite.Group()
         self._bonusGroup = pygame.sprite.Group()
         self._handName = pygame.sprite.Group()
+        self.currentDiscard = None
 
         handName = prevailingWind + str(number) + '局'
         print(handName)
@@ -147,16 +148,16 @@ class HandS(Hand):
     def play(self):
         current = self._dealer
         before = None
-        currentDiscard = None
+        self.currentDiscard = None
 
         haveWinner = False
         while not haveWinner and self.mjSet.get_left_tiles_cnt() >= 0:
-            if currentDiscard:
+            if self.currentDiscard:
                 wind = current.position
                 player = current
                 for index in range(3):
-                    if player.try_mahjong(currentDiscard):
-                        player.concealed.append(currentDiscard)
+                    if player.try_mahjong(self.currentDiscard):
+                        player.concealed.append(self.currentDiscard)
                         print(f"winner is {player}, by {before}")
                         self._winner = before
                         self.firer = before
@@ -170,7 +171,7 @@ class HandS(Hand):
                 break
 
             interrupted = False
-            if currentDiscard:
+            if self.currentDiscard:
                 player = None
                 # try kong ( must have tiles ):
                 if self.mjSet.get_left_tiles_cnt() > 0 and self.mjSet.bonus_count < 5:
@@ -178,7 +179,7 @@ class HandS(Hand):
                     player = current
                     for index in range(3):
                         try:
-                            if player.try_exposed_kong(tile=currentDiscard, owner=before, mjSet=self._mjSet):
+                            if not player.is_riichi and player.try_exposed_kong(tile=self.currentDiscard, owner=before, mjSet=self._mjSet):
                                 self.refresh_screen('drawing')
                                 self.mjSet.bonus_count += 1
                                 # self._sound_kong.play()
@@ -204,7 +205,7 @@ class HandS(Hand):
                     wind = current.position
                     player = current
                     for index in range(3):
-                        if player.try_exposed_pong(tile=currentDiscard, owner=before):
+                        if not player.is_riichi and player.try_exposed_pong(tile=self.currentDiscard, owner=before):
                             self.refresh_screen()
                             interrupted = True
                             break
@@ -215,11 +216,11 @@ class HandS(Hand):
                 if not interrupted:
                     # wind = current.position
                     player = current
-                    if player.try_exposed_chow(currentDiscard, before):
+                    if not player.is_riichi and player.try_exposed_chow(self.currentDiscard, before):
                         self.refresh_screen()
                         interrupted = True
                 if not interrupted:
-                    before.put_on_desk(currentDiscard)
+                    before.put_on_desk(self.currentDiscard)
                 before.discarding = None
             # end if currentDiscard
 
@@ -246,10 +247,17 @@ class HandS(Hand):
                     self._stateMachine.mahjong()
                     self.refresh_screen(state='mahjong')
                     break
-
+                if current.is_riichi:
+                    current.discard(new_tile)
+                    print(current, 'discard tile:', new_tile)
+                    self.currentDiscard = new_tile
+                if self.winner:
+                    break
+                if not current.is_riichi and current.try_riichi():
+                    self.refresh_screen()
                 # self kong
                 try:
-                    if current.try_conceal_kong(self.mjSet) and self.mjSet.bonus_count < 5:
+                    if not current.is_riichi and current.try_conceal_kong(self.mjSet) and self.mjSet.bonus_count < 5:
                         self.mjSet.bonus_count += 1
                 except OutOfTilesError as e:
                     self.withdraw()
@@ -267,7 +275,7 @@ class HandS(Hand):
                 # test for exposed kong from exposed pong
                 result_of_try = False
                 try:
-                    if self.mjSet.bonus_count < 5:
+                    if not current.is_riichi and self.mjSet.bonus_count < 5:
                         result_of_try = current.try_exposed_kong_from_exposed_pong(mjSet=self.mjSet)
                         if result_of_try:
                             self.mjSet.bonus_count += 1
@@ -304,12 +312,13 @@ class HandS(Hand):
                         break
                 if self._winner:
                     break
+            if not current.is_riichi:
+                tile = current.decide_discard()
+                current.discard(tile)
+                self.currentDiscard = tile
+                print(current, 'discard tile:', tile)
 
-            tile = current.decide_discard()
-            current.discard(tile)
-            print(current, 'discard tile:', tile)
 
-            currentDiscard = tile
             current.sortconcealed()
 
             # next player

@@ -57,20 +57,20 @@ class Suit(object):
     }
 
     Dragon = {
-        '中': {
+        '白': {
             'value': 10,
-            'eng': 'red',
-            'text': '中',
+            'eng': 'white',
+            'text': '白',
         },
         '发': {
             'value': 20,
             'eng': 'green',
             'text': '发',
         },
-        '白': {
+        '中': {
             'value': 30,
-            'eng': 'white',
-            'text': '白',
+            'eng': 'red',
+            'text': '中',
         },
     }
 

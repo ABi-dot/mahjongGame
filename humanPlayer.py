@@ -8,6 +8,10 @@ from utils.mjSet import MjSet
 from sprite import Sprite
 from utils.rule import Rule
 from utils.mjMath import MjMath
+from mahjong.hand_calculating.hand import HandCalculator
+from mahjong.shanten import Shanten
+from mahjong.tile import TilesConverter
+
 
 
 class HumanPlayer(Player):
@@ -94,6 +98,43 @@ class HumanPlayer(Player):
             return True
         else:
             raise ValueError("exposed pong error cmd:", cmd)
+
+    def try_riichi(self):
+        if not self._is_closed:
+            return False
+        shanten = Shanten()
+        m, p, s, h = Rule.convert_arr_to_mpsh(Rule.convert_tiles_to_arr(self.concealed))
+        for expose in self.exposed:
+            if expose.expose_type != 'concealed kong': return False
+        tiles = TilesConverter.string_to_34_array(man=m, sou=s, pin=p, honors=h)
+        result = shanten.calculate_shanten(tiles)
+        if result <= 0:
+            allowed_cmd = ['riichi', 'cancel']
+            choices = []
+            for index in range(len(self.concealed)):
+                test_tiles = []
+                for i, tile in enumerate(self.concealed):
+                    if i != index:
+                        test_tiles.append(tile)
+                shanten = Shanten()
+                m, p, s, h = Rule.convert_arr_to_mpsh(Rule.convert_tiles_to_arr(test_tiles))
+                tiles = TilesConverter.string_to_34_array(man=m, sou=s, pin=p, honors=h)
+                res = shanten.calculate_shanten(tiles)
+                if res <= 0:
+                    choices.append([index])
+            cmd = self.waiting_4_cmd(allowed_cmd=allowed_cmd, choices=choices)
+            if cmd == 'cancel':
+                return False
+            elif cmd == 'riichi':
+                self.currentIdx = 0
+                tile_index = choices[self.currentIdx][0]
+                tile = self.concealed[tile_index]
+                self.discard(tile)
+                self.riichi()
+                self.hand.currentDiscard = tile
+                return True
+        else:
+            return False
 
     def try_conceal_kong(self, mjSet: MjSet) -> bool:
         if not self.concealed:
@@ -228,6 +269,8 @@ class HumanPlayer(Player):
                     sys.exit()
                 if event.type == pygame.KEYDOWN:
                     keys = pygame.key.get_pressed()
+                    if keys[pygame.K_r]:
+                        cmd = 'riichi'
                     if keys[pygame.K_c]:
                         cmd = 'chow'
                     if keys[pygame.K_p]:

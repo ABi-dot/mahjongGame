@@ -87,6 +87,10 @@ class Player(object):
     def score(self):
         return self._score
 
+    @score.setter
+    def score(self, val):
+        self._score = val
+
     @property
     def position(self):
         return self._position
@@ -280,16 +284,33 @@ class Player(object):
         if not self._is_closed:
             return False
         shanten = Shanten()
-        print(Rule.convert_arr_to_mpsh(Rule.convert_tiles_to_arr(self.concealed)))
         m, p, s, h = Rule.convert_arr_to_mpsh(Rule.convert_tiles_to_arr(self.concealed))
         for expose in self.exposed:
             if expose.expose_type != 'concealed kong': return False
-
         tiles = TilesConverter.string_to_34_array(man=m, sou=s, pin=p, honors=h)
         result = shanten.calculate_shanten(tiles)
         if result <= 0:
+            choices = []
+            for index in range(len(self.concealed)):
+                test_tiles = []
+                for i, tile in enumerate(self.concealed):
+                    if i != index:
+                        test_tiles.append(tile)
+                shanten = Shanten()
+                m, p, s, h = Rule.convert_arr_to_mpsh(Rule.convert_tiles_to_arr(test_tiles))
+                tiles = TilesConverter.string_to_34_array(man=m, sou=s, pin=p, honors=h)
+                res = shanten.calculate_shanten(tiles)
+                if res <= 0:
+                    choices.append([index])
+            self.currentIdx = 0
+            tile_index = choices[self.currentIdx][0]
+            tile = self.concealed[tile_index]
+            self.discard(tile)
+            self.riichi()
+            self.hand.currentDiscard = tile
             return True
-        return False
+        else:
+            return False
 
     def riichi(self):
         self._is_riichi = True

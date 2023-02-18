@@ -1,5 +1,7 @@
 import time
 
+import socket
+
 from utils.hand import Hand
 import pygame
 from setting import Setting
@@ -58,7 +60,7 @@ class HandS(Hand):
                 player.position = Suit.getWindByIndex(idx)
                 if player.isViewer:
                     viewer = player
-                    player.hand = self
+                player.hand = self
             for player in players:
                 player.viewerPosition = viewer.position
             if viewer:
@@ -159,7 +161,7 @@ class HandS(Hand):
                     if player.try_mahjong(self.currentDiscard):
                         player.concealed.append(self.currentDiscard)
                         print(f"winner is {player}, by {before}")
-                        self._winner = before
+                        self._winner = player
                         self.firer = before
                         self._stateMachine.mahjong()
                         haveWinner = True
@@ -386,3 +388,175 @@ class HandS(Hand):
         self._winner = None
         self.out_of_tiles = True
         self._stateMachine.withdraw()
+
+    def score(self):
+        self.refresh_screen(state='scoring')
+        result = ''
+        if not self.winner:
+            result = 'draw'
+        elif self.winner == self._player:
+            result = 'win'
+        else:
+            result = 'lose'
+
+        text = ''
+        player_position = self._player.position
+        if self._winner:
+            if self._winner.position == player_position:
+                text = 'self_win'
+            elif self._winner.position == Suit.getNextWind(player_position):
+                text = 'next_win'
+            elif self._winner.position == Suit.getBeforeWind(player_position):
+                text = 'before_win'
+            else:
+                text = 'opposite_win'
+        else:
+            text = 'draw'
+
+        #show end screen
+        self.draw_end_screen(result=result, text=text)
+        #show scoreboard
+        scores = []
+        if not self.winner:
+            self.screen.fill(Color.WHITE)
+            self.draw_players(self.players, winner=None, score=0)
+            self.waiting_return()
+            return
+        winner = self._winner
+        by_self = False
+        if self._winner == self.firer:
+            by_self = True
+
+        #need fixed!
+        scores = []
+        score = 8000
+        self.screen.fill(Color.WHITE)
+
+        self.draw_players(players=self.players, winner=self.winner, score=score, by_self=by_self, firer=self.firer)
+        self.draw_score_screen(scores=scores,
+                               concealed=winner.concealed, exposed=winner.exposed)
+        self.waiting_return()
+
+    def draw_score_screen(self, scores, concealed, exposed):
+        score_group = pygame.sprite.Group()
+
+        if concealed:
+            left = Setting.score_board_concealed_left
+            bottom = Setting.score_board_concealed_bottom
+            for index, tile in enumerate(concealed):
+                image = pygame.image.load(Setting.tileImgPath + tile.img)
+                sprite = Sprite(image)
+                sprite.rect.left = left
+                sprite.rect.bottom = bottom
+                left += sprite.rect.w
+                if index == len(concealed) - 2:
+                    left += sprite.rect.w
+                score_group.add(sprite)
+
+        if exposed:
+            left = Setting.score_board_exposed_left
+            bottom = Setting.score_board_exposed_bottom
+            for expose in exposed:
+                for index, tile in enumerate(expose.all):
+                    image = pygame.image.load(Setting.tileImgPath + tile.img)
+                    sprite = Sprite(image)
+                    sprite.rect.left = left
+                    sprite.rect.bottom = bottom
+                    left += sprite.rect.w
+                    score_group.add(sprite)
+                left += sprite.rect.w
+
+        #points
+        font = pygame.font.Font(Setting.font, Setting.bigFontSize)
+        if scores:
+            left = Setting.score_board_left
+            bottom = Setting.score_board_bottom
+            for index, score in enumerate(scores):
+                pass
+        score_group.draw(self.screen)
+        pygame.display.flip()
+
+    def draw_end_screen(self, result = 'win', text = ''):
+        score_group = pygame.sprite.Group()
+        if result not in ['win', 'lose', 'draw']:
+            raise ValueError(f"result:{result} not in ['win', 'lose', 'draw']")
+
+        #hand result
+        file = Setting.sprite_base + text + '.png'
+        image = pygame.image.load(file)
+        end_btn = Sprite(image)
+        end_btn.rect.centerx = Setting.WinW // 2
+        end_btn.rect.bottom = Setting.WinH - 100
+        score_group.add(end_btn)
+
+        #end_btn
+        btn_img = Setting.sprite_base + Setting.btn_img['end']
+        image = pygame.image.load(btn_img)
+        btn = Sprite(image)
+        btn.rect.centerx = Setting.WinW // 2
+        btn.rect.centery = Setting.WinH // 2
+        score_group.add(btn)
+        score_group.draw(self.screen)
+        pygame.display.flip()
+        self.waiting_return()
+
+    def waiting_return(self):
+        allowed_cmd = ['discard']
+        if not self._player:
+            return
+        self._player.waiting_4_cmd(allowed_cmd=allowed_cmd, draw_screen=False)
+
+    def draw_players(self, players, winner, score, by_self=False, firer=None):
+        if not players:
+            raise ValueError("need players")
+
+        players_group = pygame.sprite.Group()
+        font = pygame.font.Font(Setting.font, Setting.normalFontSize)
+        left = Setting.score_board_left
+        bottom = Setting.WinH - Setting.score_board_bottom
+        if not winner:
+            winner = None
+            bottom = Setting.WinH // 2
+        if not score:
+            score = 0
+
+        for player in players:
+            text = player.nick + ': ' + str(player.score)
+            if player == winner:
+                image = font.render(text, True, Color.RED)
+            else:
+                image = font.render(text, True, Color.BLACK)
+            sprite = Sprite(image)
+            sprite.rect.left = left
+            sprite.rect.bottom = bottom
+            players_group.add(sprite)
+            left += sprite.rect.w + 10
+
+            #need fixed!
+            if player == winner:
+                if by_self:
+                    text = "+ " + str((8 + score) * 3)
+                    player.score += (8 + score) * 3
+                else:
+                    text = "+ " + str(8 * 3 + score)
+                    player.score -= 8 + score
+                image = font.render(text, True, Color.GREEN)
+            else:
+                if by_self:
+                    text = "- " + str(score + 8)
+                    player.score -= score + 8
+                elif player == firer:
+                    text = "- " + str(score + 8)
+                    player.score -= score + 8
+                else:
+                    text = "- " + str(8)
+                    player.score -= 8
+                image = font.render(text, True, Color.GREEN)
+            sprite = Sprite(image)
+            sprite.rect.left = left
+            sprite.rect.bottom = bottom
+            players_group.add(sprite)
+            left += Setting.score_board_player_x_span
+
+            players_group.draw(self.screen)
+            pygame.display.flip()

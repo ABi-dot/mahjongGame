@@ -3,7 +3,7 @@ class Setting(object):
     WinW = 1280
     WinH = 800
     win_w_h_half = (WinW - WinH) // 2 + 50
-    FPS = 10
+    FPS = 30
     cmd_FPS = 60
 
     gameCircles = 2
@@ -56,8 +56,24 @@ class Setting(object):
         'ignore': 'ignore.png',
         'riichi': 'listen.png'
     }
+
+    btn_img = {
+        'start': 'btn_start.png',
+        'end': 'btn_end.png',
+    }
     waiting_img_span = 10
 
     bonus_text_left = 80
     bonus_text_bottom = 220
     bonus_text_img_span = 10
+
+    score_board_left = 300
+    score_board_bottom = 100
+    score_board_player_x_span = 100
+
+    score_board_concealed_left = 300
+    score_board_concealed_bottom = 100
+
+    score_board_exposed_left = 300
+    score_board_exposed_bottom = 200
+    score_board_exposed_x_span = 42

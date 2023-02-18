@@ -47,3 +47,5 @@ class Game(object):
             hand.deal()
 
             hand.play()
+            hand.score()
+            pygame.display.flip()

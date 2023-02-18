@@ -126,12 +126,12 @@ class HumanPlayer(Player):
             if cmd == 'cancel':
                 return False
             elif cmd == 'riichi':
-                self.currentIdx = 0
                 tile_index = choices[self.currentIdx][0]
                 tile = self.concealed[tile_index]
                 self.discard(tile)
                 self.riichi()
                 self.hand.currentDiscard = tile
+                self.currentTiles = []
                 return True
         else:
             return False
@@ -263,6 +263,7 @@ class HumanPlayer(Player):
 
         cmd = ''
         while not cmd or cmd not in allowed_cmd:
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -289,17 +290,20 @@ class HumanPlayer(Player):
                             if self.currentIdx < 0:
                                 self.currentIdx = len(choices) - 1
                             self.currentTiles = choices[self.currentIdx]
+                            self.hand.refresh_screen()
                     if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
                         if choices:
                             self.currentIdx += 1
                             if self.currentIdx >= len(choices):
                                 self.currentIdx = 0
                             self.currentTiles = choices[self.currentIdx]
+                            self.hand.refresh_screen()
             if cmd not in allowed_cmd:
                 cmd = ''
 
             self.clock.tick(Setting.cmd_FPS)
 
-            self.draw_screen()
-            self.hand.refresh_screen()
+        self.draw_screen()
+
+        self.waiting_cmd = []
         return cmd

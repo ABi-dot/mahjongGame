@@ -2,6 +2,7 @@ from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.tile import TilesConverter
 from mahjong.hand_calculating.hand_config import HandConfig, OptionalRules
 from mahjong.shanten import Shanten
+from mahjong.meld import Meld
 
 calculator = HandCalculator()
 def print_hand_result(hand_result):
@@ -14,13 +15,10 @@ dora_indicators = [
     TilesConverter.string_to_136_array(man='1')[0],
 
 ]
-tiles = TilesConverter.string_to_136_array(man='19', pin='91', honors='77654321', sou='19')
-win_tile = TilesConverter.string_to_136_array(honors='4', pin='')[0]
-result = calculator.estimate_hand_value(tiles, win_tile, dora_indicators=dora_indicators)
+tiles = TilesConverter.string_to_136_array(man='234', pin='22444567', sou='567')
+win_tile = TilesConverter.string_to_136_array(man='2')[0]
+melds = [Meld(meld_type=Meld.PON, tiles=TilesConverter.string_to_136_array(pin='444'), opened=False),
+         Meld(meld_type=Meld.CHI, tiles=TilesConverter.string_to_136_array(sou='567'), opened=True)]
+
+result = calculator.estimate_hand_value(tiles, win_tile, melds=melds, config=HandConfig(is_tsumo=True, options=OptionalRules(has_open_tanyao=True)))
 print_hand_result(result)
-
-shanten = Shanten()
-tiles = TilesConverter.string_to_34_array(man='123', pin='', sou='1',honors='')
-result = shanten.calculate_shanten(tiles)
-
-print(result)

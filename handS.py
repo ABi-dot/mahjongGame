@@ -10,7 +10,9 @@ from color import Color
 from utils.error import *
 from utils.suit import Suit
 from utils.rule import Rule
+from utils.mjSet import MjSet
 from utils.mjMath import MjMath
+from utils.cal import Calc
 from utils.tile import Tile
 
 class HandS(Hand):
@@ -29,6 +31,7 @@ class HandS(Hand):
         self._bgImgGroup = pygame.sprite.Group()
         self._infoGroup = pygame.sprite.Group()
         self._bonusGroup = pygame.sprite.Group()
+        self._scorebonusGroup = pygame.sprite.Group()
         self._handName = pygame.sprite.Group()
         self.currentDiscard = None
 
@@ -158,11 +161,15 @@ class HandS(Hand):
                 wind = current.position
                 player = current
                 for index in range(3):
-                    if player.try_mahjong(self.currentDiscard):
+                    if player.try_mahjong(self.currentDiscard) and \
+                            Calc.check_if_can_hu(player.concealed, player.exposed, self.currentDiscard,
+                                                 by_self=False, is_riichi=player.is_riichi,
+                                                 player_position=player.position, prevailing_wind=self._prevailingWind):
                         player.concealed.append(self.currentDiscard)
                         print(f"winner is {player}, by {before}")
                         self._winner = player
                         self.firer = before
+                        self.winning_tile = self.currentDiscard
                         self._stateMachine.mahjong()
                         haveWinner = True
                         self.refresh_screen(state='mahjong')
@@ -242,10 +249,12 @@ class HandS(Hand):
                 self.refresh_screen(state='drawing')
 
                 # test for hu by self
-                if current.try_mahjong(tile=None):
+                if current.try_mahjong(tile=None) and Calc.check_if_can_hu(current.concealed, current.exposed, new_tile,
+                                                 by_self=True, is_riichi=current.is_riichi, player_position=current.position, prevailing_wind=self._prevailingWind):
                     print(f"winner is {current}, by self!")
                     self._winner = current
                     self.firer = current
+                    self.winning_tile = new_tile
                     self._stateMachine.mahjong()
                     self.refresh_screen(state='mahjong')
                     break
@@ -306,6 +315,7 @@ class HandS(Hand):
                             player.concealed.append(new_tile)
                             self._winner = player
                             self.firer = current
+                            self.winning_tile = new_tile
                             self._stateMachine.mahjong()
                             self.refresh_screen(state='mahjong')
                             self.robbing_a_kong = True
@@ -427,17 +437,63 @@ class HandS(Hand):
         if self._winner == self.firer:
             by_self = True
 
+        calculator = Calc(mjSet=self.mjSet, concealed=self.winner.concealed, exposed=self.winner.exposed, winning_tile=self.winning_tile,
+                          winner_position=self.winner.position, prevailing_wind=self._prevailingWind, by_self=by_self, robbing_a_kong=self.robbing_a_kong,
+                          mahjong_on_kong=self.mahjong_on_kong, is_riichi=self.winner.is_riichi)
+        result = calculator.calc()
         #need fixed!
-        scores = []
-        score = 8000
+        score = result.cost['main']
         self.screen.fill(Color.WHITE)
 
         self.draw_players(players=self.players, winner=self.winner, score=score, by_self=by_self, firer=self.firer)
-        self.draw_score_screen(scores=scores,
-                               concealed=winner.concealed, exposed=winner.exposed)
+        self.draw_bonus_screen(self.winner.is_riichi)
+        self.draw_score_screen(concealed=winner.concealed, exposed=winner.exposed, result=result)
         self.waiting_return()
 
-    def draw_score_screen(self, scores, concealed, exposed):
+    def draw_bonus_screen(self, is_riichi):
+        self._scorebonusGroup.empty()
+        text = self._font.render('宝牌指示牌', True, Color.BLACK)
+        sprite = Sprite(text)
+        sprite.rect.left = Setting.score_bonus_text_left
+        sprite.rect.bottom = Setting.score_bonus_text_bottom
+        self._scorebonusGroup.add(sprite)
+        left = Setting.score_bonus_text_left
+        top = Setting.score_bonus_text_bottom + Setting.bonus_text_img_span
+        for i in range(5):
+            if i + 1 <= self.mjSet.bonus_count:
+                tile = self.mjSet.bonus[i]
+                path = Setting.tileImgPath + tile.img
+            else:
+                path = Setting.tileImgPath + Setting.facedownImg
+            image = pygame.image.load(path)
+            sprite = Sprite(image)
+            sprite.rect.left = left
+            sprite.rect.top = top
+            self._scorebonusGroup.add(sprite)
+            left += sprite.rect.w
+        text = self._font.render('里宝牌指示牌', True, Color.BLACK)
+        sprite = Sprite(text)
+        sprite.rect.left = Setting.score_bonus_text_left
+        sprite.rect.bottom = Setting.score_libonus_text_bottom
+        self._scorebonusGroup.add(sprite)
+        left = Setting.score_bonus_text_left
+        top = Setting.score_libonus_text_bottom + Setting.bonus_text_img_span
+        for i in range(5):
+            if is_riichi and i + 1 <= self.mjSet.bonus_count:
+                tile = self.mjSet.li_bonus[i]
+                path = Setting.tileImgPath + tile.img
+            else:
+                path = Setting.tileImgPath + Setting.facedownImg
+            image = pygame.image.load(path)
+            sprite = Sprite(image)
+            sprite.rect.left = left
+            sprite.rect.top = top
+            self._scorebonusGroup.add(sprite)
+            left += sprite.rect.w
+
+        self._scorebonusGroup.draw(self.screen)
+
+    def draw_score_screen(self, concealed, exposed, result):
         score_group = pygame.sprite.Group()
 
         if concealed:
@@ -466,13 +522,37 @@ class HandS(Hand):
                     score_group.add(sprite)
                 left += sprite.rect.w
 
+        left = Setting.score_bonus_text_left
+        bottom = Setting.score_fushu_bottom
+        font = pygame.font.Font(Setting.font, Setting.bigFontSize)
+        image = font.render(str(result.han) + '番' + str(result.fu) + '符', True, Color.BLACK)
+        sprite = Sprite(image)
+        sprite.rect.left, sprite.rect.bottom = left, bottom
+        score_group.add(sprite)
+
+        font = pygame.font.Font(Setting.font, Setting.hugeFontSize)
+        bottom += 100
+        image = font.render(str(result.cost['main']) + '点', True, Color.RED)
+        sprite = Sprite(image)
+        sprite.rect.left, sprite.rect.bottom = left, bottom
+        score_group.add(sprite)
+
         #points
         font = pygame.font.Font(Setting.font, Setting.bigFontSize)
-        if scores:
+        if result.yaku:
             left = Setting.score_board_left
             bottom = Setting.score_board_bottom
-            for index, score in enumerate(scores):
-                pass
+            for index, fan in enumerate(result.yaku):
+                image = font.render(str(fan), True, Color.BLACK)
+                sprite = Sprite(image)
+                sprite.rect.left = left
+                sprite.rect.bottom = bottom
+                score_group.add(sprite)
+                if index % 2 == 1:
+                    left = Setting.score_board_left
+                    bottom += Setting.score_board_score_y_span
+                else:
+                    left = Setting.score_board_left + Setting.score_board_score_width + Setting.score_board_score_x_span
         score_group.draw(self.screen)
         pygame.display.flip()
 
@@ -506,6 +586,14 @@ class HandS(Hand):
             return
         self._player.waiting_4_cmd(allowed_cmd=allowed_cmd, draw_screen=False)
 
+    def fix_score(self, score):
+        score = int(score)
+        if score % 100:
+            t = score // 100
+            return (t + 1) * 100
+        return score
+
+
     def draw_players(self, players, winner, score, by_self=False, firer=None):
         if not players:
             raise ValueError("need players")
@@ -513,7 +601,7 @@ class HandS(Hand):
         players_group = pygame.sprite.Group()
         font = pygame.font.Font(Setting.font, Setting.normalFontSize)
         left = Setting.score_board_left
-        bottom = Setting.WinH - Setting.score_board_bottom
+        bottom = Setting.WinH - 100
         if not winner:
             winner = None
             bottom = Setting.WinH // 2
@@ -534,24 +622,30 @@ class HandS(Hand):
 
             #need fixed!
             if player == winner:
-                if by_self:
-                    text = "+ " + str((8 + score) * 3)
-                    player.score += (8 + score) * 3
-                else:
-                    text = "+ " + str(8 * 3 + score)
-                    player.score -= 8 + score
+                text = "+ " + str(score)
+                player.score += score
                 image = font.render(text, True, Color.GREEN)
             else:
                 if by_self:
-                    text = "- " + str(score + 8)
-                    player.score -= score + 8
+                    if winner.position == '东':
+                        fix_score = self.fix_score(score / 3)
+                        text = "- " + str(fix_score)
+                        player.score -= fix_score
+                    else:
+                        if player.position == '东':
+                            fix_score = self.fix_score(score / 2)
+                            text = "- " + str(fix_score)
+                            player.score -= fix_score
+                        else:
+                            fix_score = self.fix_score(score / 4)
+                            text = "- " + str(fix_score)
+                            player.score -= fix_score
                 elif player == firer:
-                    text = "- " + str(score + 8)
-                    player.score -= score + 8
+                    text = "- " + str(score)
+                    player.score -= score
                 else:
-                    text = "- " + str(8)
-                    player.score -= 8
-                image = font.render(text, True, Color.GREEN)
+                    text = ""
+                image = font.render(text, True, Color.RED)
             sprite = Sprite(image)
             sprite.rect.left = left
             sprite.rect.bottom = bottom

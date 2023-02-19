@@ -176,6 +176,7 @@ class Player(object):
             raise OutOfTilesError()
         # 杠上开花
         if self.try_mahjong():
+            self.hand.winning_tile = tile
             raise HaveWinnerError(winner=self)
 
     def try_exposed_pong(self, tile: Tile, owner) -> bool:
@@ -227,6 +228,7 @@ class Player(object):
             raise OutOfTilesError()
             # 杠上开花
         if self.try_mahjong():
+            self.hand.winning_tile = tile
             raise HaveWinnerError(winner=self)
         return True
 
@@ -332,7 +334,8 @@ class Player(object):
             raise OutOfTilesError()
         # 杠上开花
         if self.try_mahjong():
-           raise HaveWinnerError(winner=self)
+            self.hand.winning_tile = tile
+            raise HaveWinnerError(winner=self)
 
     def try_mahjong(self, tile=None) -> bool:
         test = self.concealed[:]

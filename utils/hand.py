@@ -31,6 +31,7 @@ class Hand(object):
         self.firer = None
         self.robbing_a_kong = False
         self.mahjong_on_kong = False
+        self.winning_tile = None
 
         self._stateMachine = HandStateMachine()
         self._states = ["begin", "prepared", "playing", "scoring", "end"]

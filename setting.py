@@ -19,7 +19,7 @@ class Setting(object):
     smallFontSize = 15
     normalFontSize = 20
     bigFontSize = 30
-    hugeFontSize = 40
+    hugeFontSize = 50
 
     # hand name
     handNameLeft = 98
@@ -68,7 +68,7 @@ class Setting(object):
     bonus_text_img_span = 10
 
     score_board_left = 300
-    score_board_bottom = 100
+    score_board_bottom = 300
     score_board_player_x_span = 100
 
     score_board_concealed_left = 300
@@ -77,3 +77,13 @@ class Setting(object):
     score_board_exposed_left = 300
     score_board_exposed_bottom = 200
     score_board_exposed_x_span = 42
+
+    score_board_score_y_span = 50
+    score_board_score_x_span = 150
+    score_board_score_width = 250
+
+    score_bonus_text_left = 1000
+    score_bonus_text_bottom = 100
+    score_libonus_text_bottom = 200
+
+    score_fushu_bottom = 400

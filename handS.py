@@ -14,6 +14,7 @@ from utils.mjSet import MjSet
 from utils.mjMath import MjMath
 from utils.cal import Calc
 from utils.tile import Tile
+from utils.saving import Saving
 
 class HandS(Hand):
     def __init__(self, players: list = None, prevailingWind: str = '东',
@@ -35,8 +36,12 @@ class HandS(Hand):
         self._handName = pygame.sprite.Group()
         self.currentDiscard = None
 
+
         handName = prevailingWind + str(number) + '局'
         print(handName)
+        self.saving = Saving(Setting.save_file_name + '_' + handName + '.pkl')
+        self.saving.save_info(players=players, prevailingWind=prevailingWind,
+                              number=number, viewer=viewer)
         normalFont = pygame.font.Font(Setting.font, Setting.normalFontSize)
         img = normalFont.render(handName, True, Color.WHITE)
         sprite = pygame.sprite.Sprite()
@@ -173,6 +178,7 @@ class HandS(Hand):
                         self._stateMachine.mahjong()
                         haveWinner = True
                         self.refresh_screen(state='mahjong')
+                        self.saving.add_status(self.players, self.mjSet)
                         break
                     wind = Suit.getNextWind(wind)
                     player = self.positions[wind]
@@ -193,6 +199,7 @@ class HandS(Hand):
                                 self.mjSet.bonus_count += 1
                                 # self._sound_kong.play()
                                 interrupted = True
+                                self.saving.add_status(self.players, self.mjSet)
                                 break
                         except OutOfTilesError as e:
                             self.withdraw()
@@ -203,6 +210,7 @@ class HandS(Hand):
                             self._stateMachine.mahjong()
                             have_winner = True
                             self.refresh_screen(state='mahjong')
+                            self.saving.add_status(self.players, self.mjSet)
                             break
                         wind = Suit.getNextWind(wind)
                         player = self.positions[wind]
@@ -217,6 +225,7 @@ class HandS(Hand):
                         if not player.is_riichi and player.try_exposed_pong(tile=self.currentDiscard, owner=before):
                             self.refresh_screen()
                             interrupted = True
+                            self.saving.add_status(self.players, self.mjSet)
                             break
                         wind = Suit.getNextWind(wind)
                         player = self.positions[wind]
@@ -228,8 +237,10 @@ class HandS(Hand):
                     if not player.is_riichi and player.try_exposed_chow(self.currentDiscard, before):
                         self.refresh_screen()
                         interrupted = True
+                        self.saving.add_status(self.players, self.mjSet)
                 if not interrupted:
                     before.put_on_desk(self.currentDiscard)
+                    self.saving.add_status(self.players, self.mjSet)
                 before.discarding = None
             # end if currentDiscard
 
@@ -249,6 +260,8 @@ class HandS(Hand):
                 self.refresh_screen(state='drawing')
 
                 # test for hu by self
+                self.saving.add_status(self.players, self.mjSet)
+
                 if current.try_mahjong(tile=None) and Calc.check_if_can_hu(current.concealed, current.exposed, new_tile,
                                                  by_self=True, is_riichi=current.is_riichi, player_position=current.position, prevailing_wind=self._prevailingWind):
                     print(f"winner is {current}, by self!")
@@ -259,17 +272,20 @@ class HandS(Hand):
                     self.refresh_screen(state='mahjong')
                     break
                 if current.is_riichi:
+                    current._is_yifa = False
                     current.discard(new_tile)
                     print(current, 'discard tile:', new_tile)
                     self.currentDiscard = new_tile
                 if self.winner:
                     break
                 if not current.is_riichi and current.try_riichi():
+                    current._is_yifa = True
                     self.refresh_screen()
                 # self kong
                 try:
                     if not current.is_riichi and current.try_conceal_kong(self.mjSet) and self.mjSet.bonus_count < 5:
                         self.mjSet.bonus_count += 1
+                        self.saving.add_status(self.players, self.mjSet)
                 except OutOfTilesError as e:
                     self.withdraw()
                 except HaveWinnerError as e:
@@ -279,6 +295,7 @@ class HandS(Hand):
                     self._stateMachine.mahjong()
                     haveWinner = True
                     self.refresh_screen(state='mahjong')
+                    self.saving.add_status(self.players, self.mjSet)
                     break
                 if self.winner:
                     break
@@ -290,6 +307,7 @@ class HandS(Hand):
                         result_of_try = current.try_exposed_kong_from_exposed_pong(mjSet=self.mjSet)
                         if result_of_try:
                             self.mjSet.bonus_count += 1
+                            self.saving.add_status(self.players, self.mjSet)
                 except OutOfTilesError as e:
                     self.withdraw()
                 except HaveWinnerError as e:
@@ -299,6 +317,7 @@ class HandS(Hand):
                     self._stateMachine.mahjong()
                     haveWinner = True
                     self.refresh_screen(state='mahjong')
+                    self.saving.add_status(self.players, self.mjSet)
 
                 if result_of_try:
                     # try rob kong by others
@@ -319,6 +338,7 @@ class HandS(Hand):
                             self._stateMachine.mahjong()
                             self.refresh_screen(state='mahjong')
                             self.robbing_a_kong = True
+                            self.saving.add_status(self.players, self.mjSet)
                             break
                     if self._winner:
                         break
@@ -329,6 +349,7 @@ class HandS(Hand):
                 current.discard(tile)
                 self.currentDiscard = tile
                 print(current, 'discard tile:', tile)
+                self.saving.add_status(self.players, self.mjSet)
 
 
             current.sortconcealed()
@@ -349,6 +370,8 @@ class HandS(Hand):
                 print(f"winner {player}: ", Rule.convert_tiles_to_str(player.concealed))
             else:
                 print(f"{player}: ", Rule.convert_tiles_to_str(player.concealed))
+        self.saving.save_status()
+        self.saving.save()
 
     # end def play()
 
@@ -439,7 +462,7 @@ class HandS(Hand):
 
         calculator = Calc(mjSet=self.mjSet, concealed=self.winner.concealed, exposed=self.winner.exposed, winning_tile=self.winning_tile,
                           winner_position=self.winner.position, prevailing_wind=self._prevailingWind, by_self=by_self, robbing_a_kong=self.robbing_a_kong,
-                          mahjong_on_kong=self.mahjong_on_kong, is_riichi=self.winner.is_riichi)
+                          mahjong_on_kong=self.mahjong_on_kong, is_riichi=self.winner.is_riichi, is_yifa = self.winner._is_yifa)
         result = calculator.calc()
         #need fixed!
         score = result.cost['main']

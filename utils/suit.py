@@ -94,7 +94,7 @@ class Suit(object):
             if w == wind:
                 p = idx
                 break
-        return cls.getWindByIndex((idx + 1) % 4)
+        return cls.getWindByIndex((p + 1) % 4)
 
     @classmethod
     def getBeforeWind(cls, wind):
@@ -107,7 +107,7 @@ class Suit(object):
             if w == wind:
                 p = idx
                 break
-        return cls.getWindByIndex((idx - 1 + 4) % 4)
+        return cls.getWindByIndex((p - 1 + 4) % 4)
 
     @classmethod
     def getOppositionWind(cls, wind:str):

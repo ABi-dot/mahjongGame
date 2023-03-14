@@ -1,3 +1,6 @@
+import time
+
+
 class Setting(object):
     GameName = 'Riichi Mahjong Game'
     WinW = 1280
@@ -87,3 +90,9 @@ class Setting(object):
     score_libonus_text_bottom = 200
 
     score_fushu_bottom = 400
+
+    save_file_path = '/resource/savings'
+    save_file_name = './resource/savings/' + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
+
+    saving_start_h = 90
+    saving_h_span = 60

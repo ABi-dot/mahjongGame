@@ -10,7 +10,7 @@ from mahjong.shanten import Shanten
 
 class Calc(object):
     def __init__(self, mjSet: MjSet, concealed=None, exposed=None, winning_tile: Tile=None, winner_position = '', prevailing_wind = '', by_self = False,
-                 robbing_a_kong = False, mahjong_on_kong = False, is_riichi = False):
+                 robbing_a_kong = False, mahjong_on_kong = False, is_riichi = False, is_yifa = False):
         self.mjSet = mjSet
         self.concealed = []
         if concealed:
@@ -24,6 +24,7 @@ class Calc(object):
         self.robbing_a_kong = robbing_a_kong
         self.mahjong_on_kong = mahjong_on_kong
         self.is_riichi = is_riichi
+        self.is_yifa = is_yifa
 
     @classmethod
     def convert_tile_to_mpsh_arr(self, tiles):
@@ -43,7 +44,7 @@ class Calc(object):
 
     def print_hand_result(self, hand_result):
         print(hand_result.han, hand_result.fu)
-        if hand_result.han > 0:
+        if hand_result.han and hand_result.han > 0:
             print(hand_result.cost['main'])
             print(hand_result.yaku)
 
@@ -101,6 +102,12 @@ class Calc(object):
 
     def calc(self):
         calculator = HandCalculator()
+        haidi, hedi = False, False
+        if self.mjSet.get_left_tiles_cnt() == 0:
+            if self.by_self:
+                haidi = True
+            else:
+                hedi = True
         tile_all = []
         for tile in self.concealed:
             tile_all.append(tile)
@@ -122,7 +129,8 @@ class Calc(object):
                 dora_indicators.append(
                     TilesConverter.string_to_136_array(man=arr[0], pin=arr[1], sou=arr[2], honors=arr[3])[0])
         result = calculator.estimate_hand_value(tiles=tiles, win_tile=winning_tile, melds=melds, dora_indicators=dora_indicators
-                                                , config=HandConfig(is_tsumo=self.by_self, is_riichi=self.is_riichi, is_chankan=self.robbing_a_kong, is_rinshan=self.mahjong_on_kong,
+                                                , config=HandConfig(is_tsumo=self.by_self, is_riichi=self.is_riichi,is_ippatsu=self.is_yifa,
+                                                                    is_chankan=self.robbing_a_kong, is_rinshan=self.mahjong_on_kong, is_haitei=haidi, is_houtei=hedi,
                                                                     player_wind=self.transfer_wind(self.winner_positon), round_wind=self.transfer_wind(self.prevailing_wind),
                                                                     options=OptionalRules(has_open_tanyao=True)))
         self.print_hand_result(result)

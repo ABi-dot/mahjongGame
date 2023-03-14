@@ -42,6 +42,7 @@ class Player(object):
         self.all_group = pygame.sprite.Group()
 
         self._is_riichi = False
+        self._is_yifa = False
 
     def reset(self):
         self._concealed = []
@@ -58,6 +59,10 @@ class Player(object):
     @property
     def discarding(self):
         return self._discarding
+
+    @property
+    def discarded(self):
+        return self._discarded
 
     @property
     def is_riichi(self):
@@ -168,7 +173,7 @@ class Player(object):
                     break
         if count < 3:
             raise ValueError(f"{self.nick} don't have enough {tile}!")
-        expose = Expose('exposed kong', inners=inner, outer=tile, outer_owner=owner)
+        expose = Expose('exposed kong', inners=inner, outer=tile, outer_owner_position=owner.position)
         self._exposed.append(expose)
         self._is_closed = False
         tile = self.draw_from_back(mjSet)
@@ -202,7 +207,7 @@ class Player(object):
                     break
         if count < 2:
             raise ValueError(f"{self.nick} don't have enough {tile}!")
-        expose = Expose('exposed pong', inners=inner, outer=tile, outer_owner=owner)
+        expose = Expose('exposed pong', inners=inner, outer=tile, outer_owner_position=owner.position)
         self._exposed.append(expose)
         self._is_closed = False
 
@@ -254,7 +259,7 @@ class Player(object):
                     self._concealed.remove(test)
                     break
 
-        expose = Expose('exposed chow', inners=inners, outer=tile, outer_owner=owner)
+        expose = Expose('exposed chow', inners=inners, outer=tile, outer_owner_position=owner.position)
         self._exposed.append(expose)
         self._is_closed = False
 
@@ -327,7 +332,7 @@ class Player(object):
                 self.concealed.remove(x)
                 if count >= 4:
                     break
-        expose = Expose(expose_type='concealed kong', inners=inners, outer=None, outer_owner=None)
+        expose = Expose(expose_type='concealed kong', inners=inners, outer=None, outer_owner_position=None)
         self._exposed.append(expose)
         tile = self.draw_from_back(mjSet)
         if not tile:
@@ -437,27 +442,27 @@ class Player(object):
 
                 # lay down the tile for pong
                 if exposed.expose_type == "exposed pong":
-                    if exposed.outer_owner.position == Suit.getBeforeWind(self.position):
+                    if exposed.outer_owner_position == Suit.getBeforeWind(self.position):
                         if i2 == 0:
                             adjust = 90
-                    if exposed.outer_owner.position == Suit.getNextWind(self.position):
+                    if exposed.outer_owner_position == Suit.getNextWind(self.position):
                         if i2 == 2:
                             adjust = 90
-                    if exposed.outer_owner.position != Suit.getBeforeWind(self.position) and \
-                            exposed.outer_owner.position != Suit.getNextWind(self.position):
+                    if exposed.outer_owner_position != Suit.getBeforeWind(self.position) and \
+                            exposed.outer_owner_position != Suit.getNextWind(self.position):
                         if i2 == 1:
                             adjust = 90
 
                 # lay down the tile for kong
                 if exposed.expose_type in ["exposed kong", "exposed kong from exposed pong"]:
-                    if exposed.outer_owner.position == Suit.getBeforeWind(self.position):
+                    if exposed.outer_owner_position == Suit.getBeforeWind(self.position):
                         if i2 == 0:
                             adjust = 90
-                    if exposed.outer_owner.position == Suit.getNextWind(self.position):
+                    if exposed.outer_owner_position == Suit.getNextWind(self.position):
                         if i2 == 2:
                             adjust = 90
-                    if exposed.outer_owner.position != Suit.getBeforeWind(self.position) and \
-                            exposed.outer_owner.position != Suit.getNextWind(self.position):
+                    if exposed.outer_owner_position != Suit.getBeforeWind(self.position) and \
+                            exposed.outer_owner_position != Suit.getNextWind(self.position):
                         if i2 == 3:
                             adjust = 90
 

@@ -99,9 +99,9 @@ class Load(object):
         return cmd
 
     def check_savings(self):
-        abs_path = os.path.abspath(__file__)
-        print(abs_path + '/../..' + Setting.save_file_path)
-        for root, dirs, files in os.walk(abs_path + '/../..' + Setting.save_file_path):
+        #abs_path = os.path.abspath(__file__)
+        #print(abs_path + '/../..' + Setting.save_file_path)
+        for root, dirs, files in os.walk(Setting.save_file_path):
             self.savings = files
         print(self.savings)
 

@@ -55,7 +55,7 @@ while True:
                 load = Load(screen=screen, clock=clock)
                 file_name = load.load()
                 if file_name:
-                    review = Review('.' + Setting.save_file_path + '/' + file_name, screen=screen, clock=clock)
+                    review = Review(Setting.save_file_path + '/' + file_name, screen=screen, clock=clock, model=True)
                     review.play()
         draw_interface(screen)
 

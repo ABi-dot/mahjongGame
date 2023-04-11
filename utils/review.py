@@ -6,10 +6,61 @@ from utils.suit import Suit
 from color import Color
 from sprite import Sprite
 from utils.mjSet import MjSet
+from utils.tile import Tile
+import os
 import sys
+import torch
+import collections
+import torch.nn as nn
+import torch.nn.functional as F
+from utils.rule import Rule
+import numpy as np
+
+
+class QNet(nn.Module):
+    """QNet.
+    Input: feature
+    Output: num_act of values
+    """
+
+    def __init__(self, dim_state, num_action):
+        super().__init__()
+        self.fc1 = nn.Linear(dim_state, 64)
+        self.fc2 = nn.Linear(64, 32)
+        self.fc3 = nn.Linear(32, num_action)
+
+    def forward(self, state):
+        x = F.relu(self.fc1(state))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+class DQN:
+    def __init__(self, dim_state=None, num_action=None, discount=0.9):
+        self.discount = discount
+        self.Q = QNet(dim_state, num_action)
+        self.target_Q = QNet(dim_state, num_action)
+        self.target_Q.load_state_dict(self.Q.state_dict())
+
+    def get_qvals(self, state):
+        return self.Q(state)
+
+    def get_action(self, state):
+        qvals = self.Q(state)
+        return qvals.argmax()
+
+    def compute_loss(self, s_batch, a_batch, r_batch, d_batch, next_s_batch):
+        # 计算s_batch，a_batch对应的值。
+        qvals = self.Q(s_batch).gather(1, a_batch.unsqueeze(1)).squeeze()
+        # 使用target Q网络计算next_s_batch对应的值。
+        next_qvals, _ = self.target_Q(next_s_batch).detach().max(dim=1)
+        # 使用MSE计算loss。
+        loss = F.mse_loss(r_batch + self.discount * next_qvals * (1 - d_batch), qvals)
+        return loss
+
 
 class Review:
-    def __init__(self, filename, screen, clock):
+    def __init__(self, filename, screen, clock, model):
         saving = Saving(filename)
         self.data = saving.load_data()
         self.info = self.data['info']
@@ -22,13 +73,63 @@ class Review:
         self.seq = self.data['seq']
         self.seq_len = len(self.seq)
         self.font = pygame.font.Font(Setting.font, Setting.normalFontSize)
-        self.mjSet: MjSet = None
+        self.mjSet: MjSet = MjSet()
+        self.model = model
+        if self.model:
+            self.card_encoding_dict = {}
+            self._init_card_encoding()
+            self.action_id = self.card_encoding_dict
+            self.de_action_id = {self.action_id[key]: key for key in self.action_id.keys()}
+            self.agent = DQN(34*4, 34)
+            model_path = os.path.join('.', "model.bin")
+            self.agent.Q.load_state_dict(torch.load(model_path))
 
         self._bgImgGroup = pygame.sprite.Group()
         self._infoGroup = pygame.sprite.Group()
         self._bonusGroup = pygame.sprite.Group()
         self._scorebonusGroup = pygame.sprite.Group()
         self._handName = pygame.sprite.Group()
+
+    def _init_card_encoding(self):
+        for i in range(101, 110):
+            self.card_encoding_dict[i] = i - 101
+        for i in range(201, 210):
+            self.card_encoding_dict[i] = i - 192
+        for i in range(301, 310):
+            self.card_encoding_dict[i] = i - 283
+        for i in range(410, 435, 10):
+            self.card_encoding_dict[i] = (i // 10) % 10 + 26
+        for i in range(510, 545, 10):
+            self.card_encoding_dict[i] = (i // 10) % 10 + 29
+        self.card_encoding_dict['pong'] = 34
+        self.card_encoding_dict['chow'] = 35
+        self.card_encoding_dict['kong'] = 36
+        self.card_encoding_dict['riichi'] = 37
+        self.card_encoding_dict['stand'] = 38
+
+    def convert_arr_to_index(self, arr):
+        d = []
+        for num in arr:
+            if num < 200:
+                d.append(num-101)
+            elif num < 300:
+                d.append(num - 192)
+            elif num < 400:
+                d.append(num - 283)
+            elif num < 500:
+                d.append((num // 10) % 10 + 26)
+            else:
+                d.append((num // 10) % 10 + 29)
+        return d
+
+    def generate_status(self, c):
+        arr = self.convert_arr_to_index(Rule.convert_tiles_to_arr(c))
+        c = collections.Counter(arr)
+        state = np.zeros((34, 4), dtype=float)
+        for k, v in c.items():
+            state[k][:v] = 1
+        flat = np.ndarray.flatten(state)
+        return flat
 
     def play(self):
         self.handle_data()
@@ -124,7 +225,6 @@ class Review:
         record = self.seq[self.step]
         for r in record['players']:
             nick = r['nick']
-            print(r)
             for player in self.players:
                 if player.nick == nick:
                     player._concealed = r['concealed']
@@ -134,9 +234,31 @@ class Review:
                     player._desk = r['desk']
                     player._position = r['position']
                     break
+        if self.model:
+            for player in self.players:
+                if player.nick == 'lyf':
+                    if len(player.concealed) % 3 == 2:
+                        state = self.generate_status(player.concealed)
+                        qvals = self.agent.get_qvals(torch.from_numpy(state).float())
+                        for i in range(34):
+                            tile = Rule.convert_key_to_tile(self.get_de_action_id(i))
+                            exist = False
+                            for t in player.concealed:
+                                if tile.key == t.key:
+                                    exist = True
+                                    break
+                            if not exist:
+                                qvals[i] = float("-inf")
+                        print(qvals)
+                        action = qvals.argmax()
+                        action = action.item()
+                        print(Rule.convert_key_to_tile(self.get_de_action_id(action)))
+
         self.mjSet = record['mjSet']
         self.refresh_screen(state)
 
+    def get_de_action_id(self, action):
+        return self.de_action_id[action]
 
     def drawbackground(self):
         self._bgImgGroup.draw(self.screen)

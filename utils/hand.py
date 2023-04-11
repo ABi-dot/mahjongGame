@@ -164,7 +164,7 @@ class Hand(object):
                 current = player
             else:
                 if self.mjSet.get_left_tiles_cnt() == 0:
-                    print("out of tiles!!!")
+                    #print("out of tiles!!!")
                     self._winner = None
                     self._stateMachine.withdraw()
                     break
@@ -173,7 +173,7 @@ class Hand(object):
                 current.draw(self.mjSet)
                 #test by hu
                 if Rule.is_rong(current.concealed):
-                    print(f"winner is {current}, by self!")
+                    #print(f"winner is {current}, by self!")
                     self._winner = current
                     self._stateMachine.mahjong()
                     break
@@ -182,7 +182,7 @@ class Hand(object):
                 current.try_conceal_kong(mjSet=self.mjSet)
 
             tile = current.decide_discard()
-            print(current, 'discard', tile)
+            #print(current, 'discard', tile)
             current.discard(tile)
             current.sortconcealed()
             currentDiscard = tile
@@ -193,12 +193,12 @@ class Hand(object):
             current = nextPlayer
         #end while
 
-        print("tiles left :", self.mjSet.get_left_tiles_cnt())
-        for player in self.players:
-            if player == self.winner:
-                print(f"winner {player}: ", Rule.convert_tiles_to_str(player.concealed))
-            else:
-                print(f"{player}: ", Rule.convert_tiles_to_str(player.concealed))
+        #print("tiles left :", self.mjSet.get_left_tiles_cnt())
+        #for player in self.players:
+        #    if player == self.winner:
+        #        print(f"winner {player}: ", Rule.convert_tiles_to_str(player.concealed))
+        #    else:
+        #        print(f"{player}: ", Rule.convert_tiles_to_str(player.concealed))
 
 
 
@@ -222,7 +222,6 @@ def test_play_once():
     hand.prepare()
     hand.deal()
     hand.play()
-    print(hand.winner)
     hand.score()
     return hand.winner
 

@@ -91,7 +91,7 @@ class Setting(object):
 
     score_fushu_bottom = 400
 
-    save_file_path = '/resource/savings'
+    save_file_path = './resource/savings'
     save_file_name = './resource/savings/' + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
     saving_start_h = 90

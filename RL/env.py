@@ -28,6 +28,14 @@ class Env(object):
         self.de_action_id = {self.action_id[key]: key for key in self.action_id.keys()}
         self.prepare()
         self.agent = agent
+        self.totalvalue = 0
+        self.values = []
+        self.avgvalues = []
+        self.winrate = []
+        self.maxavgvalues = float("-inf")
+        self.win = 0
+        self.lose = 0
+        self.p = 10000
 
 
     def _init_card_encoding(self):
@@ -71,29 +79,44 @@ class Env(object):
             reward = 0
             self.player.next_state = self.generate_status()
             if self.hand.winner == self.player:
-                reward = 100
+                reward = 200
+                self.win += 1
             elif self.hand.firer == self.player:
-                reward = -100
+                reward = -30
+                self.lose += 1
             elif self.hand.winner != None:
                 reward = -20
+                self.lose += 1
+            if self.win + self.lose > 0:
+                self.winrate.append(self.win / (self.win + self.lose))
             self.player.episode_reward += reward
             self.player.episode_length += 1
-
-            self.player.replay_buffer.push(self.player.state[:], self.player.action, reward, done, self.player.next_state[:])
+            if self.player.state is not None and self.player.next_state is not None:
+                self.player.replay_buffer.push(self.player.state[:], self.player.action, reward, done, self.player.next_state[:])
 
             if done is True:
-                self.player.log["episode_reward"].append(self.player.episode_reward)
-                self.player.log["episode_length"].append(self.player.episode_length)
+                self.player.log_ep_rewards.append(self.player.episode_reward)
+                self.player.log_ep_length.append(self.player.episode_length)
+                self.values.append(self.player.episode_reward)
+                self.totalvalue += self.player.episode_reward
+                if len(self.values) > 100:
+                    a = self.values[0]
+                    self.values.pop(0)
+                    self.totalvalue -= a
+                avg = self.totalvalue / len(self.values)
+                self.avgvalues.append(avg)
 
-                print(
-                    f"i={self.player.step}, reward={self.player.episode_reward:.0f}, length={self.player.episode_length}, max_reward={self.player.max_episode_reward},"
-                    f" loss={self.player.log['loss'][-1]:.1e}, epsilon={self.player.epsilon:.3f}")
+                if self.win + self.lose > 0:
+                    print(
+                        f"i={self.player.step}, reward={self.player.episode_reward:.0f}, avg_reward={avg:.2f}, length={self.player.episode_length},"
+                        f" loss={self.player.log_losses[-1]:.1e}, epsilon={self.player.epsilon:.3f}, win_rate={self.win / (self.win + self.lose) :.4f}")
 
                 # 如果得分更高，保存模型。
-                if self.player.episode_reward > self.player.max_episode_reward:
+                if avg > self.maxavgvalues:
                     save_path = os.path.join(self.player.args.output_dir, "model.bin")
-                    torch.save(self.player.agent.Q.state_dict(), save_path)
-                    self.player.max_episode_reward = self.player.episode_reward
+                    torch.save(self.player.agent.model.state_dict(), save_path)
+                    #self.player.max_episode_reward = self.player.episode_reward
+                    self.maxavgvalues = avg
 
                 self.player.shanten = -1
                 self.player.episode_reward = 0
@@ -115,7 +138,7 @@ class Env(object):
                 self.player.optimizer.step()
                 self.player.optimizer.zero_grad()
 
-                self.player.log["loss"].append(loss.item())
+                self.player.log_losses.append(loss.item())
 
                 def soft_update(target, source, tau=0.01):
                     """
@@ -124,16 +147,47 @@ class Env(object):
                     for target_param, param in zip(target.parameters(), source.parameters()):
                         target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
-                soft_update(self.agent.target_Q, self.agent.Q)
+                soft_update(self.agent.target_model, self.agent.model)
+            if self.player.step > self.p:
+                self.p += 10000
+                # 3. 画图。
+                plt.plot(self.player.log_losses)
+                plt.yscale("log")
+                plt.savefig(f"{self.args.output_dir}/loss.png", bbox_inches="tight")
+                plt.close()
 
+                # plt.plot(np.cumsum(self.player.log_ep_length), self.player.log_ep_rewards)
+                # plt.savefig(f"{self.args.output_dir}/episode_reward.png", bbox_inches="tight")
+                # plt.close()
+                plt.plot(self.winrate)
+                plt.yscale("linear")
+                plt.xlabel("episode")
+                plt.ylabel("winning rate")
+                plt.savefig(f"{self.args.output_dir}/winning_rate.png", bbox_inches="tight")
+                plt.close()
+
+
+                plt.plot(self.avgvalues)
+                plt.yscale("linear")
+                plt.xlabel("episode")
+                plt.ylabel("average reward / per 100 episodes")
+                plt.savefig(f"{self.args.output_dir}/avg_reward.png", bbox_inches="tight")
+                plt.close()
         # 3. 画图。
-        plt.plot(self.player.log["loss"])
+        plt.plot(self.player.log_losses)
         plt.yscale("log")
         plt.savefig(f"{self.args.output_dir}/loss.png", bbox_inches="tight")
         plt.close()
 
-        plt.plot(np.cumsum(self.player.log["episode_length"]), self.player.log["episode_reward"])
-        plt.savefig(f"{self.args.output_dir}/episode_reward.png", bbox_inches="tight")
+        #plt.plot(np.cumsum(self.player.log_ep_length), self.player.log_ep_rewards)
+        #plt.savefig(f"{self.args.output_dir}/episode_reward.png", bbox_inches="tight")
+        #plt.close()
+
+        plt.plot(self.avgvalues)
+        plt.yscale("linear")
+        plt.xlabel("episode")
+        plt.ylabel("average reward / per 100 episodes")
+        plt.savefig(f"{self.args.output_dir}/avg_reward.png", bbox_inches="tight")
         plt.close()
 
 
@@ -156,12 +210,12 @@ class Env(object):
     def generate_status(self):
         arr = self.convert_arr_to_index(Rule.convert_tiles_to_arr(self.player.concealed))
         c = collections.Counter(arr)
-        state = np.zeros((34, 4), dtype=float)
+        state = np.zeros((4, 34), dtype=float)
         #print(Rule.convert_tiles_to_arr(self.player.concealed))
         for k, v in c.items():
-            state[k][:v] = 1
-        flat = np.ndarray.flatten(state)
-        return flat
+            for i in range(v):
+                state[i][k] = 1
+        return state
 
     def get_de_action_id(self, action):
         return self.de_action_id[action]

@@ -42,7 +42,7 @@ class Game(object):
         for idx in range(4):
             hand = HandS(players=self.players, viewer=self.player,
                          number=idx+1, prevailingWind=prevailingWind,
-                         screen=self.screen, clock=self.clock)
+                         screen=self.screen, clock=self.clock, model=True)
             hand.prepare()
             hand.deal()
 

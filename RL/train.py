@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from env import Env
+from RL.env import Env
 
 class QNet(nn.Module):
     """QNet.
@@ -18,41 +18,63 @@ class QNet(nn.Module):
     Output: num_act of values
     """
 
-    def __init__(self, dim_state, num_action):
+    def __init__(self, dim_obs, num_act):
         super().__init__()
-        self.fc1 = nn.Linear(dim_state, 64)
-        self.fc2 = nn.Linear(64, 32)
-        self.fc3 = nn.Linear(32, num_action)
+        self.fc1 = nn.Linear(dim_obs, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 64)
+        self.fc4 = nn.Linear(64, num_act)
 
-    def forward(self, state):
-        x = F.relu(self.fc1(state))
+    def forward(self, obs):
+        x = F.relu(self.fc1(obs))
         x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
+        return x
+
+class CNN(nn.Module):
+    def __init__(self, in_channels=1, num_action=34):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=2, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+        self.conv2 = nn.Conv2d(in_channels=2,out_channels=4, kernel_size=(3,3), stride=(1,1),padding=(1,1))
+        self.fc1 = nn.Linear(34*4*4, num_action)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = x.view(-1, 4*4*34)
+        x = self.fc1(x)
         return x
 
 
-class DQN:
-    def __init__(self, dim_state=None, num_action=None, discount=0.9):
+class DoubleDQN:
+    def __init__(self, dim_obs=None, num_act=None, discount=0.9):
         self.discount = discount
-        self.Q = QNet(dim_state, num_action)
-        self.target_Q = QNet(dim_state, num_action)
-        self.target_Q.load_state_dict(self.Q.state_dict())
+        #self.model = QNet(dim_obs, num_act)
+        self.model = CNN(in_channels=1, num_action=34)
+        #self.target_model = QNet(dim_obs, num_act)
+        self.target_model = CNN(in_channels=1, num_action=34)
+        self.target_model.load_state_dict(self.model.state_dict())
 
-    def get_qvals(self, state):
-        return self.Q(state)
+    def get_qvals(self, obs):
+        return self.model(obs)
 
-    def get_action(self, state):
-        qvals = self.Q(state)
+
+    def get_action(self, obs):
+        qvals = self.model(obs)
         return qvals.argmax()
 
+    def trans(self, s_batch):
+        return torch.reshape(torch.tensor(s_batch), (32, 1, 4, 34))
+
     def compute_loss(self, s_batch, a_batch, r_batch, d_batch, next_s_batch):
-        # 计算s_batch，a_batch对应的值。
-        qvals = self.Q(s_batch).gather(1, a_batch.unsqueeze(1)).squeeze()
-        # 使用target Q网络计算next_s_batch对应的值。
-        next_qvals, _ = self.target_Q(next_s_batch).detach().max(dim=1)
-        # 使用MSE计算loss。
+        # Compute current Q value based on current states and actions.
+        qvals = self.model(self.trans(s_batch)).gather(1, a_batch.unsqueeze(1)).squeeze()
+        # next state的value不参与导数计算，避免不收敛。
+        next_qvals, _ = self.target_model(self.trans(next_s_batch)).detach().max(dim=1)
         loss = F.mse_loss(r_batch + self.discount * next_qvals * (1 - d_batch), qvals)
         return loss
+
 
 
 def soft_update(target, source, tau=0.01):
@@ -114,29 +136,6 @@ def train(args, agent):
     env.play_game()
 
 
-def eval(args, agent):
-    agent = DQN(args.dim_state, args.num_action)
-    model_path = os.path.join(args.output_dir, "model.bin")
-    agent.Q.load_state_dict(torch.load(model_path))
-
-    episode_length = 0
-    episode_reward = 0
-    state, _ = env.reset()
-    for i in range(5000):
-        episode_length += 1
-        action = agent.get_action(torch.from_numpy(state)).item()
-        next_state, reward, terminated, truncated, _ = env.step(action)
-        done = terminated or truncated
-        env.render()
-        episode_reward += reward
-
-        state = next_state
-        if done is True:
-            print(f"episode reward={episode_reward}, episode length{episode_length}")
-            state, _ = env.reset()
-            episode_length = 0
-            episode_reward = 0
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -144,14 +143,14 @@ def main():
     parser.add_argument("--dim_state", default=34*4, type=int, help="Dimension of state.")
     parser.add_argument("--num_action", default=34, type=int, help="Number of action.")
     parser.add_argument("--discount", default=0.9, type=float, help="Discount coefficient.")
-    parser.add_argument("--max_steps", default=100_000, type=int, help="Maximum steps for interaction.")
-    parser.add_argument("--lr", default=1e-3, type=float, help="Learning rate.")
+    parser.add_argument("--max_steps", default=300_000, type=int, help="Maximum steps for interaction.")
+    parser.add_argument("--lr", default=1e-4, type=float, help="Learning rate.")
     parser.add_argument("--batch_size", default=32, type=int, help="Batch size.")
     parser.add_argument("--no_cuda", action="store_true", help="Avoid using CUDA when available")
     parser.add_argument("--seed", default=42, type=int, help="Random seed.")
-    parser.add_argument("--warmup_steps", default=2000, type=int, help="Warmup steps without training.")
+    parser.add_argument("--warmup_steps", default=5_000, type=int, help="Warmup steps without training.")
     parser.add_argument("--output_dir", default="output", type=str, help="Output directory.")
-    parser.add_argument("--epsilon_decay", default=1 / 3000, type=float, help="Epsilon-greedy algorithm decay coefficient.")
+    parser.add_argument("--epsilon_decay", default=1 / 5000, type=float, help="Epsilon-greedy algorithm decay coefficient.")
     parser.add_argument("--do_train", action="store_true", help="Train policy.")
     parser.add_argument("--do_eval", action="store_true", help="Evaluate policy.")
     args = parser.parse_args()
@@ -159,9 +158,9 @@ def main():
     args.device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
 
     set_seed(args)
-    agent = DQN(dim_state=args.dim_state, num_action=args.num_action, discount=args.discount)
-    agent.Q.to(args.device)
-    agent.target_Q.to(args.device)
+    agent = DoubleDQN(dim_obs=args.dim_state, num_act=args.num_action, discount=args.discount)
+    agent.model.to(args.device)
+    agent.target_model.to(args.device)
 
     train(args, agent)
 

@@ -57,8 +57,8 @@ class AgentPlayer(Player):
         self.step = 0
         self.action_space = []
         self.args = args
-        self.replay_buffer = ReplayBuffer(10_000)
-        self.optimizer = torch.optim.Adam(agent.Q.parameters(), lr=args.lr)
+        self.replay_buffer = ReplayBuffer(10_0000)
+        self.optimizer = torch.optim.Adam(agent.model.parameters(), lr=args.lr)
         self.optimizer.zero_grad()
         self.state = None
         self.action = None
@@ -71,10 +71,14 @@ class AgentPlayer(Player):
         self.episode_reward = 0
         self.episode_length = 0
         self.max_episode_reward = -float("inf")
-        self.log = defaultdict(list)
-        self.log["loss"].append(0)
+        self.log_ep_length = []
+        self.log_ep_rewards = []
+        self.log_losses = [0]
 
-        self.agent.Q.train()
+        self.agent.model.train()
+        self.agent.target_model.train()
+        self.agent.model.zero_grad()
+        self.agent.target_model.zero_grad()
 
     def action_sample(self):
         p = random.choice(self.action_space)
@@ -92,14 +96,14 @@ class AgentPlayer(Player):
             self.next_state = self.env.generate_status()
             reward = 0
             if result < self.shanten:
-                reward = 5
+                reward = 50
             elif result > self.shanten:
-                reward = -10
+                reward = -60
             else:
-                if result == 1 or result == 0:
-                    reward = 2
+                if result == 0:
+                    reward = 30
                 else:
-                    reward = -1
+                    reward = -5
             done = False
             self.episode_reward += reward
             self.episode_length += 1
@@ -120,7 +124,7 @@ class AgentPlayer(Player):
                 self.optimizer.step()
                 self.optimizer.zero_grad()
 
-                self.log["loss"].append(loss.item())
+                self.log_losses.append(loss.item())
 
                 def soft_update(target, source, tau=0.01):
                     """
@@ -129,23 +133,27 @@ class AgentPlayer(Player):
                     for target_param, param in zip(target.parameters(), source.parameters()):
                         target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
-                soft_update(self.agent.target_Q, self.agent.Q)
+                soft_update(self.agent.target_model, self.agent.model)
 
         self.shanten = result
         if np.random.rand() < self.epsilon or self.step < self.args.warmup_steps:
             action = self.action_sample()
         else:
-            qvals = self.agent.get_qvals(torch.from_numpy(self.state).float())
+            #qvals = self.agent.get_qvals(torch.from_numpy(self.state).float())
+            qvals = self.agent.get_qvals(self.transfer(self.state))
             for i in range(34):
                 tile = Rule.convert_key_to_tile(self.env.get_de_action_id(i))
                 if tile not in self.concealed:
-                    qvals[i] = float("-inf")
+                    qvals[0][i] = float("-inf")
             action = qvals.argmax()
             action = action.item()
         self.action = action
         #self.print_concealed()
         self.step += 1
         return Rule.convert_key_to_tile(self.env.get_de_action_id(self.action))
+
+    def transfer(self, state):
+        return torch.reshape(torch.from_numpy(state).float(), (1, 34, 4))
 
     def print_concealed(self):
         p = []

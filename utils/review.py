@@ -15,8 +15,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 from utils.rule import Rule
 import numpy as np
+class QNet(nn.Module):
+    """QNet.
+    Input: feature
+    Output: num_act of values
+    """
 
+    def __init__(self, dim_obs, num_act):
+        super().__init__()
+        self.fc1 = nn.Linear(dim_obs, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 64)
+        self.fc4 = nn.Linear(64, num_act)
 
+    def forward(self, obs):
+        x = F.relu(self.fc1(obs))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
+        return x
+'''
 class QNet(nn.Module):
     """QNet.
     Input: feature
@@ -35,29 +53,46 @@ class QNet(nn.Module):
         x = self.fc3(x)
         return x
 
-class DQN:
-    def __init__(self, dim_state=None, num_action=None, discount=0.9):
+'''
+class CNN(nn.Module):
+    def __init__(self, in_channels=1, num_action=34):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=2, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+        self.conv2 = nn.Conv2d(in_channels=2,out_channels=4, kernel_size=(3,3), stride=(1,1),padding=(1,1))
+        self.fc1 = nn.Linear(34*4*4, num_action)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = x.view(-1, 4*4*34)
+        x = self.fc1(x)
+        return x
+
+
+class DoubleDQN:
+    def __init__(self, dim_obs=None, num_act=None, discount=0.9):
         self.discount = discount
-        self.Q = QNet(dim_state, num_action)
-        self.target_Q = QNet(dim_state, num_action)
-        self.target_Q.load_state_dict(self.Q.state_dict())
+        self.model = CNN(in_channels=1, num_action=34)
+        self.target_model = CNN(in_channels=1, num_action=34)
+        self.target_model.load_state_dict(self.model.state_dict())
 
-    def get_qvals(self, state):
-        return self.Q(state)
+    def get_qvals(self, obs):
+        return self.model(obs)
 
-    def get_action(self, state):
-        qvals = self.Q(state)
+    def get_action(self, obs):
+        qvals = self.model(obs)
         return qvals.argmax()
 
+    def trans(self, s_batch):
+        return torch.reshape(torch.tensor(s_batch), (32, 1, 4, 34))
+
     def compute_loss(self, s_batch, a_batch, r_batch, d_batch, next_s_batch):
-        # 计算s_batch，a_batch对应的值。
-        qvals = self.Q(s_batch).gather(1, a_batch.unsqueeze(1)).squeeze()
-        # 使用target Q网络计算next_s_batch对应的值。
-        next_qvals, _ = self.target_Q(next_s_batch).detach().max(dim=1)
-        # 使用MSE计算loss。
+        # Compute current Q value based on current states and actions.
+        qvals = self.model(self.trans(s_batch)).gather(1, a_batch.unsqueeze(1)).squeeze()
+        # next state的value不参与导数计算，避免不收敛。
+        next_qvals, _ = self.target_model(self.trans(next_s_batch)).detach().max(dim=1)
         loss = F.mse_loss(r_batch + self.discount * next_qvals * (1 - d_batch), qvals)
         return loss
-
 
 class Review:
     def __init__(self, filename, screen, clock, model):
@@ -80,9 +115,9 @@ class Review:
             self._init_card_encoding()
             self.action_id = self.card_encoding_dict
             self.de_action_id = {self.action_id[key]: key for key in self.action_id.keys()}
-            self.agent = DQN(34*4, 34)
+            self.agent = DoubleDQN(34*4, 34)
             model_path = os.path.join('.', "model.bin")
-            self.agent.Q.load_state_dict(torch.load(model_path))
+            self.agent.model.load_state_dict(torch.load(model_path))
 
         self._bgImgGroup = pygame.sprite.Group()
         self._infoGroup = pygame.sprite.Group()
@@ -125,11 +160,12 @@ class Review:
     def generate_status(self, c):
         arr = self.convert_arr_to_index(Rule.convert_tiles_to_arr(c))
         c = collections.Counter(arr)
-        state = np.zeros((34, 4), dtype=float)
+        state = np.zeros((4, 34), dtype=float)
+        # print(Rule.convert_tiles_to_arr(self.player.concealed))
         for k, v in c.items():
-            state[k][:v] = 1
-        flat = np.ndarray.flatten(state)
-        return flat
+            for i in range(v):
+                state[i][k] = 1
+        return state
 
     def play(self):
         self.handle_data()
@@ -221,6 +257,9 @@ class Review:
         info_group.draw(self.screen)
         pygame.display.flip()
 
+    def transfer(self, state):
+        return torch.reshape(torch.from_numpy(state).float(), (1, 34, 4))
+
     def draw_stat(self, state=''):
         record = self.seq[self.step]
         for r in record['players']:
@@ -239,7 +278,8 @@ class Review:
                 if player.nick == 'lyf':
                     if len(player.concealed) % 3 == 2:
                         state = self.generate_status(player.concealed)
-                        qvals = self.agent.get_qvals(torch.from_numpy(state).float())
+                        #qvals = self.agent.get_qvals(torch.from_numpy(state).float())
+                        qvals = self.agent.get_qvals(self.transfer(state))
                         for i in range(34):
                             tile = Rule.convert_key_to_tile(self.get_de_action_id(i))
                             exist = False
@@ -248,7 +288,7 @@ class Review:
                                     exist = True
                                     break
                             if not exist:
-                                qvals[i] = float("-inf")
+                                qvals[0][i] = float("-inf")
                         print(qvals)
                         action = qvals.argmax()
                         action = action.item()

@@ -6,6 +6,7 @@ from utils.mjMath import MjMath
 from utils.player import Player
 from utils.aiPlayer import AIPlayer
 from utils.rule import Rule
+from utils.error import *
 import itertools
 
 class HandStateMachine(object):
@@ -23,6 +24,7 @@ class Hand(object):
             wind = Suit.getWindByIndex(idx)
             player.position = wind
             self._positions[wind] = player
+            player.hand = self
         self._dealer: Player = self._players[0]
         self._prevailingWind = prevailingWind
 
@@ -111,7 +113,8 @@ class Hand(object):
                 for idx in range(3):
                     test = player.concealed[:]
                     test.append(currentDiscard)
-                    if Rule.is_rong(test):
+                    if player.try_mahjong(currentDiscard):
+                    #if Rule.is_rong(test):
                         player.concealed.append(currentDiscard)
                         print(f"winner is {player}, by {before}")
                         self._winner = player
@@ -132,11 +135,21 @@ class Hand(object):
                     wind = current.position
                     player = current
                     for idx in range(3):
-                        if player.try_exposed_kong(tile=currentDiscard, owner=before, mjSet=self.mjSet):
-                            interrupted = True
+                        try:
+                            if player.try_exposed_kong(tile=currentDiscard, owner=before, mjSet=self.mjSet):
+                                interrupted = True
+                                break
+                        except HaveWinnerError as e:
+                            self._winner = player
+                            self.mahjong_on_kong = True
+                            self.firer = player
+                            self._stateMachine.mahjong()
+                            haveWinner = True
                             break
                         wind = Suit.getNextWind(wind)
                         player = self.positions[wind]
+                    if self._winner:
+                        break
 
                 # try pong:
                 if not interrupted:
@@ -179,7 +192,17 @@ class Hand(object):
                     break
 
                 # self kong
-                current.try_conceal_kong(mjSet=self.mjSet)
+                try:
+                    current.try_conceal_kong(mjSet=self.mjSet)
+                except HaveWinnerError as e:
+                    self._winner = player
+                    self.mahjong_on_kong = True
+                    self.firer = player
+                    self._stateMachine.mahjong()
+                    have_winner = True
+                    break
+                if self._winner:
+                    break
 
             tile = current.decide_discard()
             #print(current, 'discard', tile)

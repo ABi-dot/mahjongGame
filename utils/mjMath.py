@@ -89,6 +89,7 @@ class MjMath(object):
         count = len(arr)
         count -= 1
         if count not in cls.concealed_count:
+            print(arr)
             cls.debug('count error')
             return False
 

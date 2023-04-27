@@ -15,10 +15,15 @@ from utils.mjMath import MjMath
 from utils.cal import Calc
 from utils.tile import Tile
 from utils.saving import Saving
+from RL.train import DoubleDQN
+import torch
+import collections
+import numpy as np
+import os
 
 class HandS(Hand):
     def __init__(self, players: list = None, prevailingWind: str = '东',
-                 number = 1, screen=None, clock=None, viewer=None):
+                 number = 1, screen=None, clock=None, viewer=None, model=False):
         if not screen:
             raise ValueError("Need a screen!")
         if not clock:
@@ -36,6 +41,15 @@ class HandS(Hand):
         self._handName = pygame.sprite.Group()
         self.currentDiscard = None
 
+        self.model = model
+        if self.model:
+            self.card_encoding_dict = {}
+            self._init_card_encoding()
+            self.action_id = self.card_encoding_dict
+            self.de_action_id = {self.action_id[key]: key for key in self.action_id.keys()}
+            self.agent = DoubleDQN()
+            model_path = os.path.join('.', "model.bin")
+            self.agent.model.load_state_dict(torch.load(model_path))
 
         handName = prevailingWind + str(number) + '局'
         print(handName)
@@ -345,6 +359,26 @@ class HandS(Hand):
                 if self._winner:
                     break
             if not current.is_riichi:
+                if self.model:
+                    for player in self.players:
+                        if player.nick == 'lyf':
+                            if len(player.concealed) % 3 == 2:
+                                state = self.generate_status(player.concealed)
+                                #qvals = self.agent.get_qvals(torch.from_numpy(state).float())
+                                qvals = self.agent.get_qvals(self.transfer(state))
+                                for i in range(34):
+                                    tile = Rule.convert_key_to_tile(self.get_de_action_id(i))
+                                    exist = False
+                                    for t in player.concealed:
+                                        if tile.key == t.key:
+                                            exist = True
+                                            break
+                                    if not exist:
+                                        qvals[0][i] = float("-inf")
+                                print(qvals)
+                                action = qvals.argmax()
+                                action = action.item()
+                                print(Rule.convert_key_to_tile(self.get_de_action_id(action)))
                 tile = current.decide_discard()
                 current.discard(tile)
                 self.currentDiscard = tile
@@ -677,3 +711,50 @@ class HandS(Hand):
 
             players_group.draw(self.screen)
             pygame.display.flip()
+
+    def get_de_action_id(self, action):
+        return self.de_action_id[action]
+
+    def generate_status(self, c):
+        arr = self.convert_arr_to_index(Rule.convert_tiles_to_arr(c))
+        c = collections.Counter(arr)
+        state = np.zeros((34, 4), dtype=float)
+        for k, v in c.items():
+            state[k][:v] = 1
+        flat = np.ndarray.flatten(state)
+        return flat
+
+    def _init_card_encoding(self):
+        for i in range(101, 110):
+            self.card_encoding_dict[i] = i - 101
+        for i in range(201, 210):
+            self.card_encoding_dict[i] = i - 192
+        for i in range(301, 310):
+            self.card_encoding_dict[i] = i - 283
+        for i in range(410, 435, 10):
+            self.card_encoding_dict[i] = (i // 10) % 10 + 26
+        for i in range(510, 545, 10):
+            self.card_encoding_dict[i] = (i // 10) % 10 + 29
+        self.card_encoding_dict['pong'] = 34
+        self.card_encoding_dict['chow'] = 35
+        self.card_encoding_dict['kong'] = 36
+        self.card_encoding_dict['riichi'] = 37
+        self.card_encoding_dict['stand'] = 38
+
+    def convert_arr_to_index(self, arr):
+        d = []
+        for num in arr:
+            if num < 200:
+                d.append(num-101)
+            elif num < 300:
+                d.append(num - 192)
+            elif num < 400:
+                d.append(num - 283)
+            elif num < 500:
+                d.append((num // 10) % 10 + 26)
+            else:
+                d.append((num // 10) % 10 + 29)
+        return d
+
+    def transfer(self, state):
+        return torch.reshape(torch.from_numpy(state).float(), (1, 34, 4))
